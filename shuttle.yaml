@@ -3,3 +3,4 @@ plan: false
 vars:
   service: payments-plugin-thirtybees
   squad: juno
+  domain: webshop-payments
