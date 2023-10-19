@@ -29,7 +29,7 @@ class LunarpaymentPaymentReturnModuleFrontController extends AbstractLunarFrontC
     {
         $this->customer  = new Customer((int) $this->contextCart->id_customer);
         $this->totalAmount = (string) $this->contextCart->getOrderTotal(true, Cart::BOTH);
-        $this->currencyCode = Currency::getIsoCodeById((int) $this->contextCart->id_currency);
+        $this->currencyCode = (Currency::getCurrency((int) $this->contextCart->id_currency))['iso_code'];
 
         $this->paymentIntentId = $this->getPaymentIntentCookie();
 

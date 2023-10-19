@@ -1,3 +1,5 @@
+{if isset($lunar_card_action_url) || isset($lunar_mobilepay_action_url)}
+
 <script>
 {literal}
     document.addEventListener("DOMContentLoaded", function() {
@@ -24,7 +26,7 @@
 
 <style type="text/css">
     .lunar-payment {
-        margin-bottom: 10px;
+        margin-bottom: 1rem;
     }
 
     .lunar-radio {
@@ -127,7 +129,7 @@
     </div>
 {/if}
 
-{if isset($lunar_card_action_url) || isset($lunar_mobilepay_action_url) }
+
     <form id="lunar-form" action="" method="POST" hidden>
         <button class="btn btn-lg btn-success pull-right" type="submit">
             <div>

@@ -5,15 +5,12 @@ namespace Lunar\Payment\classes;
 use \Db;
 use \Order;
 use \Tools;
-use \Module;
 use \Context;
 use \Message;
 use \Currency;
 use \Customer;
 use \Validate;
 use \Configuration;
-use \CustomerMessage;
-use \CustomerThread;
 use \PrestaShopLogger;
 
 use LunarPayment;
@@ -151,7 +148,7 @@ class AdminOrderHelper
 
 				/** Leave order status unchanged until full refund */
                 ($amount_to_refund == $maxAmountToRefund)
-					? $newOrderStatus = (int) _PS_OS_REFUND_
+					? $newOrderStatus = (int) Configuration::get('PS_OS_REFUND')
 					: $newOrderStatus = null;
 
 				break;
@@ -164,7 +161,7 @@ class AdminOrderHelper
 					];
 				}
 
-				$newOrderStatus = (int) _PS_OS_CANCELED_;
+				$newOrderStatus = (int) Configuration::get('PS_OS_CANCELED');
 
 				break;
 		}

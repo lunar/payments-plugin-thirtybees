@@ -44,7 +44,7 @@ abstract class AbstractLunarFrontController extends \ModuleFrontController
     public function __construct()
     {
         parent::__construct();
-        
+
         $this->setTemplate('empty.tpl');
                 
         $this->paymentMethod = $this->module->getPaymentMethodByName(Tools::getValue('lunar_method'));
@@ -169,8 +169,8 @@ abstract class AbstractLunarFrontController extends \ModuleFrontController
     {
         // $this->errors['error_code'] = 'Lunar error';
         // $this->errors['msg_long'] = $errorMessage;
-        $this->errors['error_msg'] = $this->errorMessage($errorMessage);
-        $this->redirectWithNotifications('index.php?controller=order');
+        $this->errors[] = Tools::displayError($this->errorMessage($errorMessage));
+        Tools::redirect($this->context->link->getPageLink('order', true, (int) $this->context->language->id));
     }
     
     /**

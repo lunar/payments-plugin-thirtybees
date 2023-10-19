@@ -57,6 +57,10 @@ class LunarpaymentRedirectModuleFrontController extends AbstractLunarFrontContro
                 'name' => $this->getConfigValue('SHOP_TITLE') ?? Configuration::get('PS_SHOP_NAME'),
                 'logo' => $this->getConfigValue('LOGO_URL'),
             ],
+            'amount' => [
+                'currency' => $this->context->currency->iso_code,
+                'decimal' => (string) $this->contextCart->getOrderTotal(),
+            ],
             'custom' => [
                 'products' => $this->getFormattedProducts(),
                 'customer' => [

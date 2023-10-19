@@ -2,12 +2,10 @@
 
 namespace Lunar\Payment\methods;
 
-
 use \Tools;
 use \Context;
 use \OrderState;
 use \Configuration;
-use PrestaShop\PrestaShop\Core\Payment\PaymentOption;
 
 /**
  * 
@@ -16,7 +14,6 @@ abstract class AbstractLunarMethod
 {
     public string $METHOD_NAME;
     public string $DESCRIPTION;
-    public string $FILE_NAME;
 
 	// public string $LANGUAGE_CODE;
 	public string $METHOD_STATUS;
