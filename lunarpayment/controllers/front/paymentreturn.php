@@ -1,251 +1,303 @@
 <?php
+
+use Lunar\Exception\ApiException;
+use Lunar\Payment\controllers\front\AbstractLunarFrontController;
+
 /**
- *
- * @author    DerikonDevelopment <ionut@derikon.com>
- * @copyright Copyright (c) permanent, DerikonDevelopment
- * @version   1.0.4
- * @link      http://www.derikon.com/
- *
+ * 
  */
-
-if (!class_exists('Lunar\\Client')) {
-    require_once('modules/lunarpayment/api/Client.php');
-}
-
-class LunarpaymentPaymentReturnModuleFrontController extends ModuleFrontController
+class LunarpaymentPaymentReturnModuleFrontController extends AbstractLunarFrontController 
 {
-    public function __construct()
-    {
+    public $display_column_right;
+    public $display_column_left;
+
+    private Customer $customer;
+    private string $currencyCode = '';
+    private string $totalAmount = '';
+    private string $paymentIntentId = '';
+    private bool $captured = false;
+    private bool $cartWasTampered = false;
+    private string $errorMessage = '';
+
+    public function __construct() {
         parent::__construct();
         $this->display_column_right = false;
-        $this->display_column_left = false;
-        $this->context = Context::getContext();
+        $this->display_column_left  = false;
     }
 
-    public function init()
+    public function postProcess()
     {
-        parent::init();
-        $cart = $this->context->cart;
-        if ($cart->id_customer == 0 || $cart->id_address_delivery == 0 || $cart->id_address_invoice == 0 || !$this->module->active) {
-            Tools::redirect('index.php?controller=order&step=1');
+        $this->customer  = new Customer((int) $this->contextCart->id_customer);
+        $this->totalAmount = (string) $this->contextCart->getOrderTotal(true, Cart::BOTH);
+        $this->currencyCode = Currency::getIsoCodeById((int) $this->contextCart->id_currency);
+
+        $this->paymentIntentId = $this->getPaymentIntentCookie();
+
+        $instantMode = ('instant' == $this->getConfigValue('CHECKOUT_MODE'));
+        $orderStatusCode = $instantMode ? $this->getConfigValue('ORDER_STATUS') : Configuration::get('PS_OS_PAYMENT');
+
+        if (!$this->paymentIntentId) {
+            $this->redirectBackWithNotification('The payment intent id wasn\'t found.');
         }
 
-        $authorized = false;
-        foreach (Module::getPaymentModules() as $module) {
-            if ($module['name'] == 'lunarpayment') {
-                $authorized = true;
-                break;
+        try {
+            $apiResponse = $this->lunarApiClient->payments()->fetch($this->paymentIntentId);
+
+            if (!$this->parseApiTransactionResponse($apiResponse)) {
+                !$this->cartWasTampered 
+                    ? $this->errorMessage = $this->getResponseError($apiResponse)
+                    : null;
+                throw new PrestaShopPaymentException();
+            }
+
+            if ($instantMode) {
+                $captureResponse = $this->lunarApiClient->payments()->capture($this->paymentIntentId, $this->getPaymentData());
+
+                if (!empty($captureResponse) && 'completed' == $captureResponse['captureState']) {
+                    $this->captured = true;
+                } else {
+                    $this->errorMessage = 'Capture payment failed. Please try again or contact system administrator.';
+                    $this->maybeCancelPayment();
+                    throw new PrestaShopPaymentException();
+                }
+            }
+
+        } catch (ApiException $e) {
+            $this->errorMessage = $e->getMessage();
+
+        } catch (PrestaShopPaymentException $ppe) {
+            // stored in errorMessage
+
+        } catch (\Exception $ex) {
+            PrestaShopLogger::addLog("Lunar general exception: " . json_encode($ex->getMessage()));
+        }
+
+        if ($this->errorMessage) {
+            return $this->redirectBackWithNotification($this->errorMessage);
+        }
+
+        if ($this->orderValidation($orderStatusCode)) {
+            $this->maybeAddOrderMessage();
+
+        } else {
+            $this->errorMessage = 'Failed validating the order. Please try again or contact system administrator. ';
+            $this->maybeCancelPayment();
+                   
+            return $this->redirectToErrorPage();
+        }
+
+        $this->storeLunarTransaction();
+
+        $this->context->cookie->__unset($this->intentIdKey);
+
+        $this->redirect_after = $this->buildRedirectLink();
+    }
+
+    /**
+     * 
+     */
+    private function orderValidation($orderStatusCode): bool
+    {
+        return $this->module->validateOrder(
+            $this->contextCart->id, 
+            $orderStatusCode, 
+            $this->contextCart->getOrderTotal(), 
+            $this->getConfigValue('METHOD_TITLE'),
+            null,
+            [
+                'transaction_id' => $this->paymentIntentId
+            ], 
+            (int) $this->contextCart->id_currency, 
+            false, 
+            $this->customer->secure_key
+        );
+    }
+    
+    /**
+     * 
+     */
+    private function buildRedirectLink(): string
+    {
+        return $this->context->link->getPageLink(
+                'order-confirmation', 
+                true,
+                (int) $this->context->language->id,
+                [
+                    'id_cart' => (int) $this->contextCart->id,
+                    'id_module' => (int) $this->module->id,
+                    'id_order' => $this->module->currentOrder,
+                    'key' => $this->customer->secure_key,
+                ]
+            );
+    }
+
+    /**
+     * 
+     */
+    private function getPaymentData(): array
+    {
+        return [
+            'amount' => [
+                'currency' => $this->currencyCode,
+                'decimal' => $this->totalAmount,
+            ],
+        ];
+    }
+    
+    /**
+     * 
+     */
+    private function redirectToErrorPage(): void
+    {
+        $data = ["lunar_order_error" => 1];
+
+        $this->errorMessage ? array_merge($data, ["lunar_error_message" => $this->errorMessage]) : null;
+
+        $this->context->smarty->assign($data);
+        
+        $this->setTemplate('module:lunarpayment/views/templates/front/payment_error.tpl');
+    }
+
+    /**
+     * Parses api transaction response for errors
+     */
+    private function parseApiTransactionResponse($transaction): bool
+    {
+        if (! $this->isTransactionSuccessful($transaction)) {
+            PrestaShopLogger::addLog("Transaction with error: " . json_encode($transaction));
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
+     * Checks if the transaction was successful and
+     * the data was not tempered with.
+     */
+    private function isTransactionSuccessful($transaction): bool
+    {   
+        $matchCurrency = $this->currencyCode == ($transaction['amount']['currency'] ?? '');
+        $matchAmount = $this->totalAmount == ($transaction['amount']['decimal'] ?? '');
+        
+        if (true == $transaction['authorisationCreated'] && !($matchCurrency && $matchAmount)) {
+            $this->cartWasTampered = true;
+            $this->errorMessage .= ' Currency or Amount doesn\'t match. Data was tampered. ';
+            $this->maybeCancelPayment();
+            return false;
+        }
+
+        return (true == $transaction['authorisationCreated'] && $matchCurrency && $matchAmount);
+    }
+
+    
+    /**
+     * 
+     */
+    private function maybeCancelPayment(): void
+    {
+        // cancel only authorized payments
+        if (!$this->captured) {
+            $result = $this->lunarApiClient->payments()->cancel($this->paymentIntentId, $this->getPaymentData());
+        }
+
+        if (!empty($result) && 'completed' == $result['cancelState']) {
+            $this->errorMessage .= 'Your authorized payment was cancelled.';
+        }
+
+        $this->context->cookie->__unset($this->intentIdKey);
+    }
+
+    /**
+     * Gets errors from a failed api request
+     * @param array $result The result returned by the api wrapper.
+     */
+    private function getResponseError($result): string
+    {
+        $error = [];
+        // if this is just one error
+        if (isset($result['text'])) {
+            return $result['text'];
+        }
+
+        if (isset($result['code']) && isset($result['error'])) {
+            return $result['code'] . '-' . $result['error'];
+        }
+
+        // otherwise this is a multi field error
+        if ($result) {
+            foreach ($result as $fieldError) {
+                $error[] = $fieldError['field'] . ':' . $fieldError['message'];
             }
         }
 
-        if (!$authorized) {
-            die($this->module->l('Lunar payment method is not available.', 'paymentreturn'));
-        }
-
-
-        if (Configuration::get('LUNAR_CHECKOUT_MODE') == 'delayed') {
-            $this->fetch();
-        } else {
-            $this->capture();
-        }
+        return implode(' ', $error);
     }
 
-    public function fetch()
+    /**
+     * 
+     */
+    private function storeLunarTransaction(): bool
     {
-        $cart = $this->context->cart;
-        $customer = new Customer($cart->id_customer);
-        if (!Validate::isLoadedObject($customer)) {
-            Tools::redirect('index.php?controller=order&step=1');
+        return $this->module->storeTransaction(
+            $this->paymentIntentId, 
+            $this->module->currentOrder, 
+            $this->totalAmount, 
+            $this->paymentMethod->METHOD_NAME, 
+            $this->captured ? 'YES' : 'NO'
+        );
+    }
+
+    /**
+     * 
+     */
+    private function maybeAddOrderMessage(): void
+    {
+        $message = 'Trx ID: ' . $this->paymentIntentId . '
+                    Authorized Amount: ' . $this->totalAmount . '
+                    Captured Amount: ' . $this->captured ? $this->totalAmount : '0' . '
+                    Order time: ' . date('Y-m-d H:i:s') . '
+                    Currency code: ' . $this->currencyCode;
+
+        $message = strip_tags($message, '<br>');
+
+        if (! Validate::isCleanHtml($message) || !$this->module->currentOrder) {
+            return;
         }
 
-        Lunar\Client::setKey(Configuration::get('LUNAR_SECRET_KEY'));
-        $cart_total = $cart->getOrderTotal(true, Cart::BOTH);
-        $currency = new Currency((int)$cart->id_currency);
-        $decimals = (int)$currency->decimals * _PS_PRICE_COMPUTE_PRECISION_;
-        $currency_multiplier = $this->module->getLunarCurrencyMultiplier($currency->iso_code);
-        $cart_amount = ceil(Tools::ps_round($cart_total, 2) * $currency_multiplier);
-        $transactionid = Tools::getValue('transactionid');
-
-        $transaction_failed = false;
-
-        $fetch = Lunar\Transaction::fetch($transactionid);
-        //print_r($fetch);
-
-        if (is_array($fetch) && isset($fetch['error']) && $fetch['error'] == 1) {
-            Logger::addLog($fetch['message']);
-            $this->context->smarty->assign(array(
-                'lunar_order_error' => 1,
-                'lunar_error_message' => $fetch['message']
-            ));
-            return $this->setTemplate('payment_error.tpl');
-        } else {
-            if (!empty($fetch['transaction'])) {
-                $transaction = $fetch['transaction'];
-                if ((string)$transaction['amount'] != (string)$cart_amount || $transaction['currency'] != $currency->iso_code) {
-                    Logger::addLog('Invalid transaction.');
-                    $this->context->smarty->assign(array(
-                        'lunar_order_error' => 1,
-                        'lunar_error_message' => 'Invalid transaction.'
-                    ));
-                    return $this->setTemplate('payment_error.tpl');
-                } else {
-                    $message = 'Trx ID: '.$transactionid.'
-                        Authorized Amount: '.($fetch['transaction']['amount'] / $currency_multiplier).'
-                        Captured Amount: '.($fetch['transaction']['capturedAmount'] / $currency_multiplier).'
-                        Order time: '.$fetch['transaction']['created'].'
-                        Currency code: '.$fetch['transaction']['currency'];
-
-                    $total = $fetch['transaction']['amount'] / $currency_multiplier;
-                    $amount = $fetch['transaction']['amount'];
-
-                    //$status_paid = Configuration::get('PS_OS_PAYMENT');
-                    $status_authorized = Configuration::get( 'LUNAR_ORDER_STATUS_AUTHORIZED' );
-
-                    if ($this->module->validateOrder((int)$cart->id, $status_authorized, $total, $this->module->displayName, $message, array(), null, false, $customer->secure_key)) {
-                        $this->module->storeTransactionID($transactionid, $this->module->currentOrder, $total, $captured = 'NO');
-
-                        $redirectLink = __PS_BASE_URI__.'index.php?controller=order-confirmation&id_cart='.$cart->id.'&id_module='.$this->module->id.'&id_order='.$this->module->currentOrder.'&key='.$customer->secure_key;
-                        Tools::redirectLink($redirectLink);
-                    } else {
-                        //Lunar\Transaction::void($transactionid, ['amount' => $amount]); //Cancel Order
-                        Lunar\Transaction::void($transactionid, array('amount' => $fetch['transaction']['amount'])); //Cancel Order
-
-                        Logger::addLog('Invalid transaction.');
-                        $this->context->smarty->assign(array(
-                            'lunar_order_error' => 1,
-                            'lunar_error_message' => 'Invalid transaction.'
-                        ));
-                        return $this->setTemplate('payment_error.tpl');
-                    }
-                }
+        if ($this->module->getPSV() == '1.7.2') {
+            $id_customer_thread = CustomerThread::getIdCustomerThreadByEmailAndIdOrder($this->customer->email, $this->module->currentOrder);
+            
+            if (! $id_customer_thread) {
+                $customer_thread = new CustomerThread();
+                $customer_thread->id_contact  = 0;
+                $customer_thread->id_customer = (int) $this->customer->id;
+                $customer_thread->id_shop     = (int) $this->context->shop->id;
+                $customer_thread->id_order    = (int) $this->module->currentOrder;
+                $customer_thread->id_lang     = (int) $this->context->language->id;
+                $customer_thread->email       = $this->customer->email;
+                $customer_thread->status      = 'open';
+                $customer_thread->token       = Tools::passwdGen(12);
+                $customer_thread->add();
             } else {
-                if (!empty($fetch[0]['message'])) {
-                    Logger::addLog($fetch[0]['message']);
-                    $this->context->smarty->assign(array(
-                        'lunar_order_error' => 1,
-                        'lunar_error_message' => $fetch[0]['message']
-                    ));
-                    return $this->setTemplate('payment_error.tpl');
-                } else {
-                    Logger::addLog('Invalid transaction.');
-                    $this->context->smarty->assign(array(
-                        'lunar_order_error' => 1,
-                        'lunar_error_message' => 'Invalid transaction.'
-                    ));
-                    return $this->setTemplate('payment_error.tpl');
-                }
+                $customer_thread = new CustomerThread((int) $id_customer_thread);
             }
-        }
-    }
 
-    public function capture()
-    {
-        $cart = $this->context->cart;
-        $customer = new Customer($cart->id_customer);
-        if (!Validate::isLoadedObject($customer)) {
-            Tools::redirect('index.php?controller=order&step=1');
-        }
+            $customer_message = new CustomerMessage();
+            $customer_message->id_customer_thread = $customer_thread->id;
+            $customer_message->id_employee        = 0;
+            $customer_message->message            = $message;
+            $customer_message->private            = 1;
+            $customer_message->add();
 
-        Lunar\Client::setKey(Configuration::get('LUNAR_SECRET_KEY'));
-        $cart_total = $cart->getOrderTotal(true, Cart::BOTH);
-        $currency = new Currency((int)$cart->id_currency);
-        $decimals = (int)$currency->decimals * _PS_PRICE_COMPUTE_PRECISION_;
-        $currency_multiplier = $this->module->getLunarCurrencyMultiplier($currency->iso_code);
-        $cart_amount = ceil(Tools::ps_round($cart_total, $decimals) * $currency_multiplier);
-        //$status_paid = (int)Configuration::get('LUNAR_ORDER_STATUS_CAPTURED');
-        //$status_paid = Configuration::get('PS_OS_PAYMENT');
-        $transactionid = Tools::getValue('transactionid');
-
-        Lunar\Client::setKey(Configuration::get('LUNAR_SECRET_KEY'));
-        $fetch = Lunar\Transaction::fetch($transactionid);
-
-        if (is_array($fetch) && isset($fetch['error']) && $fetch['error'] == 1) {
-            Logger::addLog($fetch['message']);
-            $this->context->smarty->assign(array(
-                'lunar_order_error' => 1,
-                'lunar_error_message' => $fetch['message']
-            ));
-            return $this->setTemplate('payment_error.tpl');
         } else {
-            if (!empty($fetch['transaction'])) {
-                $transaction = $fetch['transaction'];
-                if ((string)$transaction['amount'] != (string)$cart_amount || $transaction['currency'] != $currency->iso_code ) {
-                    Logger::addLog('Invalid transaction.');
-                    $this->context->smarty->assign(array(
-                        'lunar_order_error' => 1,
-                        'lunar_error_message' => 'Invalid transaction.'
-                    ));
-                    return $this->setTemplate('payment_error.tpl');
-                } else {
-                    $status_paid = (int)Configuration::get('LUNAR_ORDER_STATUS_CAPTURED');
-
-                    $data = array(
-                        'currency' => $currency->iso_code,
-                        'amount' => $cart_amount,
-                    );
-                    $capture = Lunar\Transaction::capture($transactionid, $data);
-
-                    if (is_array($capture) && !empty($capture['error']) && $capture['error'] == 1) {
-                        Logger::addLog($capture['message']);
-                        $this->context->smarty->assign(array(
-                            'lunar_order_error' => 1,
-                            'lunar_error_message' => $capture['message']
-                        ));
-                        return $this->setTemplate('payment_error.tpl');
-                    } else if (!empty($capture['transaction'])) {
-
-                        $total = $capture['transaction']['amount'] / $currency_multiplier;
-                        $amount = $capture['transaction']['amount'];
-
-                        $validOrder = $this->module->validateOrder((int)$cart->id, $status_paid, $total, $this->module->displayName, null, array(), null, false, $customer->secure_key);
-
-                        $message = 'Trx ID: '.$transactionid.'
-                            Authorized Amount: '.($capture['transaction']['amount'] / $currency_multiplier).'
-                            Captured Amount: '.($capture['transaction']['capturedAmount'] / $currency_multiplier).'
-                            Order time: '.$capture['transaction']['created'].'
-                            Currency code: '.$capture['transaction']['currency'];
-
-                        $msg = new Message();
-                        $message = strip_tags($message, '<br>');
-                        if (Validate::isCleanHtml($message)) {
-                            $msg->message = $message;
-                            $msg->id_cart = (int)$cart->id;
-                            $msg->id_customer = (int)$cart->id_customer;
-                            $msg->id_order = (int)$this->module->currentOrder;
-                            $msg->private = 1;
-                            $msg->add();
-                        }
-
-                        $this->module->storeTransactionID($transactionid, $this->module->currentOrder, $total, $captured = 'YES');
-                        $redirectLink = __PS_BASE_URI__.'index.php?controller=order-confirmation&id_cart='.$cart->id.'&id_module='.$this->module->id.'&id_order='.$this->module->currentOrder.'&key='.$customer->secure_key;
-                        Tools::redirectLink($redirectLink);
-                    } else {
-                        Lunar\Transaction::void($transactionid, array('amount' => $fetch['transaction']['amount'])); //Cancel Order
-                        Logger::addLog('Invalid transaction.');
-                        $this->context->smarty->assign(array(
-                            'lunar_order_error' => 1,
-                            'lunar_error_message' => 'Invalid transaction.'
-                        ));
-                        return $this->setTemplate('payment_error.tpl');
-                    }
-                }
-            } else {
-                if (!empty($fetch[0]['message'])) {
-                    Logger::addLog($fetch[0]['message']);
-                    $this->context->smarty->assign(array(
-                        'lunar_order_error' => 1,
-                        'lunar_error_message' => $fetch[0]['message']
-                    ));
-                    return $this->setTemplate('payment_error.tpl');
-                } else {
-                    Logger::addLog('Invalid transaction.');
-                    $this->context->smarty->assign(array(
-                        'lunar_order_error' => 1,
-                        'lunar_error_message' => 'Invalid transaction.'
-                    ));
-                    return $this->setTemplate('payment_error.tpl');
-                }
-            }
+            $msg = new Message();
+            $msg->message     = $message;
+            $msg->id_cart     = (int) $this->contextCart->id;
+            $msg->id_customer = (int) $this->contextCart->id_customer;
+            $msg->id_order    = (int) $this->module->currentOrder;
+            $msg->private     = 1;
+            $msg->add();
         }
     }
 }
