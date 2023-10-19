@@ -43,10 +43,6 @@ class LunarpaymentRedirectModuleFrontController extends AbstractLunarFrontContro
      */
     private function setArgs()
     {
-        if ($this->testMode) {
-            $this->args['test'] = $this->getTestObject();
-        }
-
         $customer  = new Customer( (int) $this->contextCart->id_customer );
         $name      = $customer->firstname . ' ' . $customer->lastname;
         $email     = $customer->email;
@@ -55,31 +51,35 @@ class LunarpaymentRedirectModuleFrontController extends AbstractLunarFrontContro
         $address   = $address->address1 . ', ' . $address->address2 . ', ' . $address->city 
                     . ', ' . $address->country . ' - ' . $address->postcode;
 
-        $this->args['amount'] = [
-            'currency' => $this->context->currency->iso_code,
-            'decimal' => (string) $this->contextCart->getOrderTotal(),
-        ];
-
-        $this->args['custom'] = [
-			'products' => $this->getFormattedProducts(),
-            'customer' => [
-                'name' => $name,
-                'email' => $email,
-                'telephone' => $telephone,
-                'address' => $address,
-                'ip' => Tools::getRemoteAddr(),
+        $this->args = [
+            'integration' => [
+                'key' => $this->publicKey,
+                'name' => $this->getConfigValue('SHOP_TITLE') ?? Configuration::get('PS_SHOP_NAME'),
+                'logo' => $this->getConfigValue('LOGO_URL'),
             ],
-			'platform' => [
-				'name' => 'ThirthyBees',
-				'version' => _TB_VERSION_,
-			],
-			'lunarPluginVersion' => $this->module->version,
-        ];
-
-        $this->args['integration'] = [
-            'key' => $this->publicKey,
-            'name' => $this->getConfigValue('SHOP_TITLE') ?? Configuration::get('PS_SHOP_NAME'),
-            'logo' => $this->getConfigValue('LOGO_URL'),
+            'custom' => [
+                'products' => $this->getFormattedProducts(),
+                'customer' => [
+                    'name' => $name,
+                    'email' => $email,
+                    'telephone' => $telephone,
+                    'address' => $address,
+                    'ip' => Tools::getRemoteAddr(),
+                ],
+                'platform' => [
+                    'name' => 'ThirthyBees',
+                    'version' => _TB_VERSION_,
+                ],
+                'lunarPluginVersion' => $this->module->version,
+            ],
+            'redirectUrl' => $this->context->link->getModuleLink(
+                $this->module->name,
+                'paymentreturn',
+                ['lunar_method' => $this->paymentMethod->METHOD_NAME],
+                true,
+                (int) $this->context->language->id
+            ),
+            'preferredPaymentMethod' => $this->paymentMethod->METHOD_NAME,
         ];
 
         if ($this->getConfigValue('CONFIGURATION_ID')) {
@@ -89,15 +89,9 @@ class LunarpaymentRedirectModuleFrontController extends AbstractLunarFrontContro
             ];
         }
 
-        $this->args['redirectUrl'] = $this->context->link->getModuleLink(
-            $this->module->name,
-            'paymentreturn',
-            ['lunar_method' => $this->paymentMethod->METHOD_NAME],
-            true,
-            (int) $this->context->language->id
-        );
-
-        $this->args['preferredPaymentMethod'] = $this->paymentMethod->METHOD_NAME;
+        if ($this->testMode) {
+            $this->args['test'] = $this->getTestObject();
+        }
     }
 
     /**

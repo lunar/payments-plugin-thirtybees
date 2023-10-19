@@ -44,7 +44,8 @@ abstract class AbstractLunarFrontController extends \ModuleFrontController
     public function __construct()
     {
         parent::__construct();
-        $this->setTemplate('module:lunarpayment/views/templates/front/empty.tpl');
+        
+        $this->setTemplate('empty.tpl');
                 
         $this->paymentMethod = $this->module->getPaymentMethodByName(Tools::getValue('lunar_method'));
         if (!$this->paymentMethod) {

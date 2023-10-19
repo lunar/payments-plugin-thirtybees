@@ -265,39 +265,12 @@ class LunarpaymentPaymentReturnModuleFrontController extends AbstractLunarFrontC
             return;
         }
 
-        if ($this->module->getPSV() == '1.7.2') {
-            $id_customer_thread = CustomerThread::getIdCustomerThreadByEmailAndIdOrder($this->customer->email, $this->module->currentOrder);
-            
-            if (! $id_customer_thread) {
-                $customer_thread = new CustomerThread();
-                $customer_thread->id_contact  = 0;
-                $customer_thread->id_customer = (int) $this->customer->id;
-                $customer_thread->id_shop     = (int) $this->context->shop->id;
-                $customer_thread->id_order    = (int) $this->module->currentOrder;
-                $customer_thread->id_lang     = (int) $this->context->language->id;
-                $customer_thread->email       = $this->customer->email;
-                $customer_thread->status      = 'open';
-                $customer_thread->token       = Tools::passwdGen(12);
-                $customer_thread->add();
-            } else {
-                $customer_thread = new CustomerThread((int) $id_customer_thread);
-            }
-
-            $customer_message = new CustomerMessage();
-            $customer_message->id_customer_thread = $customer_thread->id;
-            $customer_message->id_employee        = 0;
-            $customer_message->message            = $message;
-            $customer_message->private            = 1;
-            $customer_message->add();
-
-        } else {
-            $msg = new Message();
-            $msg->message     = $message;
-            $msg->id_cart     = (int) $this->contextCart->id;
-            $msg->id_customer = (int) $this->contextCart->id_customer;
-            $msg->id_order    = (int) $this->module->currentOrder;
-            $msg->private     = 1;
-            $msg->add();
-        }
+        $msg = new Message();
+        $msg->message     = $message;
+        $msg->id_cart     = (int) $this->contextCart->id;
+        $msg->id_customer = (int) $this->contextCart->id_customer;
+        $msg->id_order    = (int) $this->module->currentOrder;
+        $msg->private     = 1;
+        $msg->add();
     }
 }

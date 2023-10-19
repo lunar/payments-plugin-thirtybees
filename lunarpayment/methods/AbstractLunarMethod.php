@@ -60,34 +60,18 @@ abstract class AbstractLunarMethod
         $this->SHOP_TITLE         = $configKeyBegin . '_SHOP_TITLE';
 	}
 
-    public function getPaymentOption()
-    {
-        $paymentOption = new PaymentOption();
-
-        $this->METHOD_NAME == LunarMobilePayMethod::METHOD_NAME 
-            // ? $paymentOption->setLogo(Media::getMediaPath(_PS_MODULE_DIR_ . $this->name . '/views/img/mobilepay-logo.png')) // @TODO test this on staging
-            ? $paymentOption->setLogo(('/modules/lunarpayment/views/img/mobilepay-logo.png')) 
-            : null;
-
-		return $paymentOption->setModuleName( $this->module->name )
-					->setCallToActionText(Configuration::get($this->METHOD_TITLE))
-					->setAction( $this->context->link->getModuleLink( $this->module->name, 'redirect', ['lunar_method' => $this->METHOD_NAME], true ) )
-					->setAdditionalInformation( $this->context->smarty->fetch('module:lunarpayment/views/templates/hook/' . $this->FILE_NAME . '.tpl' ) );
-		
-    }
-
     protected function install()
     {
 		return (
 			Configuration::updateValue( $this->METHOD_STATUS, 'enabled' )
-			&& Configuration::updateValue( $this->TRANSACTION_MODE, 'live' ) // defaults to live mode
+			&& Configuration::updateValue( $this->TRANSACTION_MODE, 'live' )
 			&& Configuration::updateValue( $this->TEST_SECRET_KEY, '' )
 			&& Configuration::updateValue( $this->TEST_PUBLIC_KEY, '' )
 			&& Configuration::updateValue( $this->LIVE_SECRET_KEY, '' )
 			&& Configuration::updateValue( $this->LIVE_PUBLIC_KEY, '' )
 			&& Configuration::updateValue( $this->LOGO_URL, '' )
 			&& Configuration::updateValue( $this->CHECKOUT_MODE, 'delayed' )
-			&& Configuration::updateValue( $this->ORDER_STATUS, Configuration::get( $this->ORDER_STATUS ) )
+			&& Configuration::updateValue( $this->ORDER_STATUS, 3) // Shipped
 			&& Configuration::updateValue( $this->METHOD_TITLE, ucfirst($this->METHOD_NAME) )
 			&& Configuration::updateValue( $this->METHOD_DESCRIPTION, $this->DESCRIPTION )
 			&& Configuration::updateValue( $this->SHOP_TITLE, Configuration::get( 'PS_SHOP_NAME' ) ?? '' )

@@ -59,7 +59,7 @@ class LunarPayment extends PaymentModule
 	{
 		return ( 
 			parent::install()
-			&& $this->registerHook( 'paymentOptions' )
+			&& $this->registerHook( 'payment' )
 			&& $this->registerHook( 'paymentReturn' )
 			&& $this->registerHook( 'DisplayAdminOrder' )
 			&& $this->registerHook( 'BackOfficeHeader' )
@@ -116,11 +116,6 @@ class LunarPayment extends PaymentModule
                 return null;  
         }
 	}
-
-	public function getPSV() {
-		return Tools::substr( _TB_VERSION_, 0, 5 );
-	}
-
 
 	/**
 	 * 
@@ -206,38 +201,38 @@ class LunarPayment extends PaymentModule
      * @throws Exception
      * @throws SmartyException
 	 */
-	public function hookPaymentOptions( $params )
+	public function hookPayment( $params )
 	{
 		if (!$this->active) {
             return;
         }
 	
-		$this->context->smarty->assign([
+		$smarty_vars = [
 			'module_path' => $this->_path,
-			'lunar_card_title' => Configuration::get($this->cardMethod->METHOD_TITLE),
-			'lunar_card_desc' => Configuration::get($this->cardMethod->METHOD_DESCRIPTION),
-			'accepted_cards' => explode( ',', Configuration::get( $this->cardMethod->ACCEPTED_CARDS ) ),
-			'lunar_mobilepay_title'	=> Configuration::get($this->mobilePayMethod->METHOD_TITLE),
-			'lunar_mobilepay_desc' => Configuration::get($this->mobilePayMethod->METHOD_DESCRIPTION),
-		]);
-
-		$payment_options = [];
+		];
 
 		if (
 			'enabled' == Configuration::get( $this->cardMethod->METHOD_STATUS)
 			&& $this->cardMethod->isConfigured()
 		) {
-			$payment_options[] = $this->cardMethod->getPaymentOption();
+			$smarty_vars['lunar_card_title'] = Configuration::get($this->cardMethod->METHOD_TITLE);
+			$smarty_vars['lunar_card_desc'] = Configuration::get($this->cardMethod->METHOD_DESCRIPTION);
+			$smarty_vars['accepted_cards'] = explode( ',', Configuration::get( $this->cardMethod->ACCEPTED_CARDS ) );
+			$smarty_vars['lunar_card_action_url'] = $this->context->link->getModuleLink( $this->name, 'redirect', ['lunar_method' => $this->cardMethod->METHOD_NAME], true );
 		}
 
 		if (
 			'enabled' == Configuration::get( $this->mobilePayMethod->METHOD_STATUS)
 			&& $this->mobilePayMethod->isConfigured()
 		) {
-			$payment_options[] = $this->mobilePayMethod->getPaymentOption();
+			$smarty_vars['lunar_mobilepay_title'] = Configuration::get($this->mobilePayMethod->METHOD_TITLE);
+			$smarty_vars['lunar_mobilepay_desc'] = Configuration::get($this->mobilePayMethod->METHOD_DESCRIPTION);
+			$smarty_vars['lunar_mobilepay_action_url'] = $this->context->link->getModuleLink( $this->name, 'redirect', ['lunar_method' => $this->mobilePayMethod->METHOD_NAME], true );
 		}
 
-		return $payment_options;
+		$this->context->smarty->assign($smarty_vars);
+
+		return $this->display(__FILE__, 'views/templates/hook/payment.tpl' );
 	}
 
 	/**
