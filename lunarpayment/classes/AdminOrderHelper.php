@@ -72,7 +72,13 @@ class AdminOrderHelper
 						: $this->getConfigValue('TEST_SECRET_KEY');
 		$apiClient = new ApiClient($secretKey);
 
-		$fetchedTransaction = $apiClient->payments()->fetch($transactionId);
+		try {
+			$fetchedTransaction = $apiClient->payments()->fetch($transactionId);
+
+		} catch (ApiException $e) {
+			PrestaShopLogger::addLog($e->getMessage(), $severity = 3);
+			throw new \Exception($e->getMessage());
+		}
 
 		if (!$fetchedTransaction && !$fetchedTransaction['authorisationCreated']) {
 			return [
@@ -132,10 +138,10 @@ class AdminOrderHelper
 				}
 				
 				/** Round to currency precision */
-				$amount_to_refund = round($amount_to_refund, $currency->precision);
+				$amount_to_refund = number_format($amount_to_refund, $currency->decimal_places);
 
 				/* Modify amount to refund accordingly */
-				$maxAmountToRefund = ($totalAmount - $refundedAmount);
+				$maxAmountToRefund = $totalAmount - $refundedAmount;
 
                 if ($amount_to_refund > $maxAmountToRefund) {
 					return [
@@ -144,10 +150,14 @@ class AdminOrderHelper
 					];
                 }
 
-				$data['amount']['decimal'] = (string) $amount_to_refund;
+				$data['amount']['decimal'] = $amount_to_refund;
+
+				// For the case of a cent difference (overcome rounding issues)
+				$difference = number_format($maxAmountToRefund - $amount_to_refund, $currency->decimal_places);
+				$precision = 1 / (10 ** $currency->decimal_places);
 
 				/** Leave order status unchanged until full refund */
-                ($amount_to_refund == $maxAmountToRefund)
+                ($amount_to_refund == $maxAmountToRefund || $difference <= $precision)
 					? $newOrderStatus = (int) Configuration::get('PS_OS_REFUND')
 					: $newOrderStatus = null;
 
@@ -170,13 +180,13 @@ class AdminOrderHelper
 			$apiTransaction = $apiClient->payments()->{$this->action}($transactionId, $data);
 
 		} catch (ApiException $e) {
-			PrestaShopLogger::addLog($e->getMessage(), PrestaShopLogger::LOG_SEVERITY_LEVEL_ERROR);
+			PrestaShopLogger::addLog($e->getMessage(), $severity = 3);
 			throw new \Exception($e->getMessage());
 		}
 
 		if ($apiTransaction && 'completed' != $apiTransaction["{$this->action}State"]) {
 			$message = $apiTransaction['declinedReason']['error'] ?? json_encode($apiTransaction);
-			PrestaShopLogger::addLog($message, PrestaShopLogger::LOG_SEVERITY_LEVEL_ERROR);
+			PrestaShopLogger::addLog($message, $severity = 3);
 			throw new \Exception($message);
 		}
 
@@ -317,7 +327,7 @@ class AdminOrderHelper
 		
 		if (
 			$order_state->id != $customCaptureStatus
-			&& $order_state->id != _PS_OS_CANCELED_
+			&& $order_state->id != Configuration::get('PS_OS_CANCELED')
 		) {
 			return false;
 		}
@@ -326,7 +336,7 @@ class AdminOrderHelper
 			$response = $this->processOrderPayment($id_order, "capture");
 		}
 
-		if ($order_state->id == _PS_OS_CANCELED_) {
+		if ($order_state->id == Configuration::get('PS_OS_CANCELED')) {
 			$response = $this->processOrderPayment($id_order, "cancel");
 		}
 		
@@ -339,11 +349,11 @@ class AdminOrderHelper
 	 */
 	private function addResponseToCookie($response) {
 		if (isset($response['error']) && $response['error'] == 1) {
-			PrestaShopLogger::addLog($response['message'], PrestaShopLogger::LOG_SEVERITY_LEVEL_ERROR);
+			PrestaShopLogger::addLog($response['message'], $severity = 3);
 			$this->context->cookie->__set('response_error', $response['message']);
 			$this->context->cookie->write();
 		} elseif (isset($response['warning']) && $response['warning'] == 1) {
-			PrestaShopLogger::addLog($response['message'], PrestaShopLogger::LOG_SEVERITY_LEVEL_WARNING);
+			PrestaShopLogger::addLog($response['message'], $severity = 2);
 			$this->context->cookie->__set('response_warnings', $response['message']);
 			$this->context->cookie->write();
 		} else {
