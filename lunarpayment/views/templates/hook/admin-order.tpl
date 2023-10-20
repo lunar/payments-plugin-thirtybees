@@ -3,13 +3,16 @@
 {literal}
     /* Load php data */
     const captured = '{/literal}{$lunartransaction["captured"]}{literal}';
+    const refunded = '{/literal}{$lunartransaction["payed_amount"] == $lunartransaction["refunded_amount"]}{literal}';
     const module_payment_not_captured = '{/literal}{$not_captured_text}{literal}';
+    const already_refunded_text = '{/literal}{$already_refunded_text}{literal}';
     const payment_select_refund = '{/literal}{$checkbox_text}{literal}';
 
     /* Add Checkbox */
     $(document).ready(() => {
         /* Display message if transaction is not captured */
         let messageBox = `<p id="doRefundLunar" class="checkbox" style="color:red">` + module_payment_not_captured + `</p>`;
+        let refundedMessage = `<p id="doRefundLunar" class="checkbox" style="color:red">` + already_refunded_text + `</p>`;
 
         /* Make partial order refund in Order page */
         let appendEl = $('select[name=id_order_state]').parents('form').after($('<div/>'));
@@ -25,7 +28,9 @@
                                             <input type="checkbox" id="doRefundLunar" name="doRefundLunar" value="1">${payment_select_refund}
                                         </label>
                                     </p>`;
-                if(captured == "NO"){
+                if(refunded){
+                    newCheckBox = refundedMessage;
+                } else if(captured == "NO"){
                     newCheckBox = messageBox;
                 }
                 $('button[name=partialRefund]').parent('.partial_refund_fields').prepend(newCheckBox);
@@ -150,7 +155,9 @@
                         {if $lunartransaction['captured'] == "NO"}
                             <option value="capture">{l s='Capture' mod=lunarpayment }</option>
                         {/if}
-                        <option value="refund">{l s='Refund' mod=lunarpayment }</option>
+                        {if $lunartransaction['payed_amount'] != $lunartransaction['refunded_amount']}
+                            <option value="refund">{l s='Refund' mod=lunarpayment }</option>
+                        {/if}
                         {if $lunartransaction['captured'] == "NO"}
                             <option value="cancel">{l s='Cancel' mod=lunarpayment }</option>
                         {/if}

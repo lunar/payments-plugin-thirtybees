@@ -302,16 +302,6 @@ class AdminOrderHelper
 			$amountToRefund += floatval(Tools::getValue('partialRefundShippingCost'));
 		}
 
-		/* For prestashop version > 1.7.7 */
-		// @TODO is replacing "," with "." still necessary?
-		if  ($refundData = Tools::getValue('cancel_product')) {
-			$shipping_amount = floatval(str_replace(',', '.', $refundData['shipping_amount']));
-			if(isset($refundData['shipping']) && $refundData['shipping'] == 1 && $shipping_amount == 0){
-				$shipping_amount = floatval(str_replace(',', '.', $params['order']->total_shipping));
-			}
-			$amountToRefund += $shipping_amount;
-		}
-
 		$response = $this->processOrderPayment($params['order']->id, "refund", $amountToRefund);
 
 		$this->addResponseToCookie($response);

@@ -283,6 +283,7 @@ class LunarPayment extends PaymentModule
 				'order_token'        			  => $order_token,
 				"lunartransaction" 				  => $dbLunarTransaction,
 				'not_captured_text'	  			  => $this->l('Capture Transaction prior to Refund via Lunar'),
+				'already_refunded_text'	  		  => $this->l('Transaction already refunded via Lunar'),
 				'checkbox_text' 	  			  => $this->l('Refund Lunar')
 			) );
 
