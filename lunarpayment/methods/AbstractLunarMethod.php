@@ -200,7 +200,7 @@ abstract class AbstractLunarMethod
 	 */
 	public function isConfigured()
 	{
-		return Configuration::get($this->APP_KEY) && Configuration::get($this->PUBLIC_KEY)
+		return Configuration::get($this->APP_KEY) && Configuration::get($this->PUBLIC_KEY);
 	}
 
 	/**

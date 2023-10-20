@@ -10,9 +10,9 @@
 
     /* Add Checkbox */
     $(document).ready(() => {
-        /* Display message if transaction is not captured */
-        let messageBox = `<p id="doRefundLunar" class="checkbox" style="color:red">` + module_payment_not_captured + `</p>`;
-        let refundedMessage = `<p id="doRefundLunar" class="checkbox" style="color:red">` + already_refunded_text + `</p>`;
+        /* Display message if transaction is not captured or it's refunded */
+        let messageBox = `<p id="doRefundLunar" style="color:red">` + module_payment_not_captured + `</p>`;
+        let refundedMessage = `<p id="doRefundLunar" style="color:red">` + already_refunded_text + `</p>`;
 
         /* Make partial order refund in Order page */
         let appendEl = $('select[name=id_order_state]').parents('form').after($('<div/>'));
@@ -25,7 +25,8 @@
             if ($(`#doRefundLunar`).length == 0) {
                 let newCheckBox = `<p class="checkbox">
                                         <label for="doRefundLunar">
-                                            <input type="checkbox" id="doRefundLunar" name="doRefundLunar" value="1">${payment_select_refund}
+                                            <input type="checkbox" id="doRefundLunar" name="doRefundLunar" value="1" checked>
+                                            ${payment_select_refund}
                                         </label>
                                     </p>`;
                 if(refunded){
