@@ -77,7 +77,10 @@ class AdminOrderHelper
 
 		} catch (ApiException $e) {
 			PrestaShopLogger::addLog($e->getMessage(), $severity = 3);
-			throw new \Exception($e->getMessage());
+			return [
+				'error'   => 1,
+				'message' => $e->getMessage(),
+			];
 		}
 
 		if (!$fetchedTransaction && !$fetchedTransaction['authorisationCreated']) {
@@ -107,7 +110,6 @@ class AdminOrderHelper
 
 		$apiTransaction = null;
 		$newOrderStatus = null;
-		$diffAmount = null;
 
 		switch ($this->action) {
 			case "capture":
@@ -181,13 +183,19 @@ class AdminOrderHelper
 
 		} catch (ApiException $e) {
 			PrestaShopLogger::addLog($e->getMessage(), $severity = 3);
-			throw new \Exception($e->getMessage());
+			return [
+				'error'   => 1,
+				'message' => $e->getMessage(),
+			];
 		}
 
 		if ($apiTransaction && 'completed' != $apiTransaction["{$this->action}State"]) {
 			$message = $apiTransaction['declinedReason']['error'] ?? json_encode($apiTransaction);
 			PrestaShopLogger::addLog($message, $severity = 3);
-			throw new \Exception($message);
+			return [
+				'error'   => 1,
+				'message' => $message,
+			];
 		}
 
 		if($newOrderStatus){
@@ -202,6 +210,7 @@ class AdminOrderHelper
 				: null
 			);
 
+		$diffAmount = null;
 		$newOrderStatus ?: $diffAmount = $amount_to_refund; // if it's a partial refund
 		$this->maybeAddOrderMessage($customer, $fetchedTransaction, $diffAmount);
 

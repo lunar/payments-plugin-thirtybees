@@ -32,9 +32,7 @@ class LunarpaymentRedirectModuleFrontController extends AbstractLunarFrontContro
         }
 
         /** @see ControllerCore $redirect_after */
-        $this->redirect_after = isset($this->args['test'])
-                                ? self::TEST_REMOTE_URL . $paymentIntentId
-                                : self::REMOTE_URL . $paymentIntentId;
+        $this->redirect_after = ($this->testMode ? self::TEST_REMOTE_URL : self::REMOTE_URL) . $paymentIntentId;
     }
 
     
