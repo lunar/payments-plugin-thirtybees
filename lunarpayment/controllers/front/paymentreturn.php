@@ -253,7 +253,7 @@ class LunarpaymentPaymentReturnModuleFrontController extends AbstractLunarFrontC
      */
     private function maybeAddOrderMessage(): void
     {
-        $message = 'Trx ID: ' . $this->paymentIntentId . '
+        $message = 'Transaction ref.: ' . $this->paymentIntentId . '
                     Authorized Amount: ' . $this->totalAmount . '
                     Captured Amount: ' . $this->captured ? $this->totalAmount : '0' . '
                     Order time: ' . date('Y-m-d H:i:s') . '

@@ -113,15 +113,13 @@ class AdminOrderHelper
 
 		switch ($this->action) {
 			case "capture":
+			case "cancel":
 				if ($isTransactionCaptured) {
 					return [
 						'warning' => 1,
-						'message' => $this->message('Transaction already Captured.'),
+						'message' => $this->message('Transaction it\'s already Captured, try to Refund.'),
 					];
 				}
-
-				$newOrderStatus = (int) $this->getConfigValue('ORDER_STATUS') ;
-
 				break;
 
 			case "refund":
@@ -161,19 +159,7 @@ class AdminOrderHelper
 				/** Leave order status unchanged until full refund */
                 ($amount_to_refund == $maxAmountToRefund || $difference <= $precision)
 					? $newOrderStatus = (int) Configuration::get('PS_OS_REFUND')
-					: $newOrderStatus = null;
-
-				break;
-
-			case "cancel":
-				if ($isTransactionCaptured) {
-					return [
-						'warning' => 1,
-						'message' => $this->message('Transaction it\'s already Captured, try to Refund.'),
-					];
-				}
-
-				$newOrderStatus = (int) Configuration::get('PS_OS_CANCELED');
+					: null;
 
 				break;
 		}
@@ -198,6 +184,8 @@ class AdminOrderHelper
 			];
 		}
 
+		// The status is chaneged only for full refund action 
+		// (for other actions, status is automatically changed)
 		if($newOrderStatus){
 			$this->order->setCurrentState($newOrderStatus, $this->context->employee->id);
 		}
@@ -212,7 +200,7 @@ class AdminOrderHelper
 
 		$diffAmount = null;
 		$newOrderStatus ?: $diffAmount = $amount_to_refund; // if it's a partial refund
-		$this->maybeAddOrderMessage($customer, $fetchedTransaction, $diffAmount);
+		$this->maybeAddOrderMessage($fetchedTransaction, $diffAmount);
 
 		return [
 			'success' => 1,
@@ -224,10 +212,10 @@ class AdminOrderHelper
 	/**
 	 * @TODO where is the message (saved in _messages table) displayed?
 	 */
-	private function maybeAddOrderMessage(Customer $customer, $fetchedTransaction, $diffAmount = null)
+	private function maybeAddOrderMessage($fetchedTransaction, $diffAmount = null)
 	{
 		$transactionAmount = $fetchedTransaction['amount']['decimal'];
-		$message = 'Trx ID: ' . $fetchedTransaction['id']  . PHP_EOL
+		$message = 'Transaction ref.: ' . $fetchedTransaction['id']  . PHP_EOL
 					. 'Authorized Amount: ' . $transactionAmount . PHP_EOL
 					. $this->actionMap[$this->action] . ' Amount: ' .  ($diffAmount ?? $transactionAmount) . PHP_EOL
 					. 'Order time: ' . date('Y-m-d H:i:s')  . PHP_EOL
