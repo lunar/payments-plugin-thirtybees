@@ -2,7 +2,6 @@
 
 namespace Lunar\Payment\controllers\front;
 
-use \Db;
 use \Cart;
 use \Tools;
 use \Module;
@@ -66,9 +65,9 @@ abstract class AbstractLunarFrontController extends \ModuleFrontController
 
         $this->validate();
 
-        $this->testMode = (bool) $_COOKIE['lunar_testmode'];
-
         $this->publicKey = $this->getConfigValue('PUBLIC_KEY');
+        
+        $this->testMode = (bool) $_COOKIE['lunar_testmode'];
 
         /** API Client instance */
         $this->lunarApiClient = new ApiClient($this->getConfigValue('APP_KEY'), null, $this->testMode);

@@ -60,11 +60,12 @@ class LunarpaymentRedirectModuleFrontController extends AbstractLunarFrontContro
                 'decimal' => (string) $this->contextCart->getOrderTotal(),
             ],
             'custom' => [
+                'orderId' => $this->contextCart->id_order,
                 'products' => $this->getFormattedProducts(),
                 'customer' => [
                     'name' => $name,
                     'email' => $email,
-                    'telephone' => $telephone,
+                    'phoneNo' => $telephone,
                     'address' => $address,
                     'ip' => Tools::getRemoteAddr(),
                 ],
