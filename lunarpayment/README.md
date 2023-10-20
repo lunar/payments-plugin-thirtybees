@@ -1,1 +1,1 @@
-# Lunar prestashop
+# Lunar Online Payments for ThirtyBees
