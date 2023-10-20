@@ -8,7 +8,6 @@ use \Tools;
 use \Context;
 use \Message;
 use \Currency;
-use \Customer;
 use \Validate;
 use \Configuration;
 use \PrestaShopLogger;
@@ -64,13 +63,11 @@ class AdminOrderHelper
 		
 		$currency = new Currency((int) $this->order->id_currency);
 		$currencyCode = $currency->iso_code;
-		$customer = new Customer($this->order->id_customer);
 		$totalAmount = (string) $this->order->getTotalPaid();
 
-		$secretKey = $this->getConfigValue('TRANSACTION_MODE') == 'live'
-						? $this->getConfigValue('LIVE_SECRET_KEY')
-						: $this->getConfigValue('TEST_SECRET_KEY');
-		$apiClient = new ApiClient($secretKey);
+		$appKey = $this->getConfigValue('APP_KEY');
+
+		$apiClient = new ApiClient($appKey, null, (bool) $_COOKIE['lunar_testmode']);
 
 		try {
 			$fetchedTransaction = $apiClient->payments()->fetch($transactionId);
@@ -138,7 +135,7 @@ class AdminOrderHelper
 				}
 				
 				/** Round to currency precision */
-				$amount_to_refund = number_format($amount_to_refund, $currency->decimal_places);
+				$amount_to_refund = number_format($amount_to_refund, $currency->decimal_places, '.', '');
 
 				/* Modify amount to refund accordingly */
 				$maxAmountToRefund = $totalAmount - $refundedAmount;
@@ -153,7 +150,7 @@ class AdminOrderHelper
 				$data['amount']['decimal'] = $amount_to_refund;
 
 				// For the case of a cent difference (overcome rounding issues)
-				$difference = number_format($maxAmountToRefund - $amount_to_refund, $currency->decimal_places);
+				$difference = number_format($maxAmountToRefund - $amount_to_refund, $currency->decimal_places, '.', '');
 				$precision = 1 / (10 ** $currency->decimal_places);
 
 				/** Leave order status unchanged until full refund */

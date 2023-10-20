@@ -17,11 +17,8 @@ abstract class AbstractLunarMethod
 
 	// public string $LANGUAGE_CODE;
 	public string $METHOD_STATUS;
-	public string $TRANSACTION_MODE;
-	public string $LIVE_PUBLIC_KEY;
-	public string $LIVE_SECRET_KEY;
-	public string $TEST_PUBLIC_KEY;
-	public string $TEST_SECRET_KEY;
+	public string $APP_KEY;
+	public string $PUBLIC_KEY;
 	public string $LOGO_URL;
 	public string $CHECKOUT_MODE;
 	public string $ORDER_STATUS;
@@ -32,6 +29,8 @@ abstract class AbstractLunarMethod
     public $module;
     public Context $context;
     protected $tabName;
+
+	// @TODO refactor this when validation will be ready
     protected array $validationPublicKeys = ['live' => [], 'test' => []];
 
     /**
@@ -44,11 +43,8 @@ abstract class AbstractLunarMethod
         $configKeyBegin = 'LUNAR_' . $this->METHOD_NAME;
 
         $this->METHOD_STATUS      = $configKeyBegin . '_METHOD_STATUS';
-        $this->TRANSACTION_MODE   = $configKeyBegin . '_TRANSACTION_MODE';
-        $this->LIVE_PUBLIC_KEY    = $configKeyBegin . '_LIVE_PUBLIC_KEY';
-        $this->LIVE_SECRET_KEY    = $configKeyBegin . '_LIVE_SECRET_KEY';
-        $this->TEST_PUBLIC_KEY    = $configKeyBegin . '_TEST_PUBLIC_KEY';
-        $this->TEST_SECRET_KEY    = $configKeyBegin . '_TEST_SECRET_KEY';
+        $this->APP_KEY    		  = $configKeyBegin . '_APP_KEY';
+        $this->PUBLIC_KEY   	  = $configKeyBegin . '_PUBLIC_KEY';
         $this->LOGO_URL           = $configKeyBegin . '_LOGO_URL';
         $this->CHECKOUT_MODE      = $configKeyBegin . '_CHECKOUT_MODE';
         $this->ORDER_STATUS       = $configKeyBegin . '_ORDER_STATUS';
@@ -61,11 +57,8 @@ abstract class AbstractLunarMethod
     {
 		return (
 			Configuration::updateValue( $this->METHOD_STATUS, 'enabled' )
-			&& Configuration::updateValue( $this->TRANSACTION_MODE, 'live' )
-			&& Configuration::updateValue( $this->TEST_SECRET_KEY, '' )
-			&& Configuration::updateValue( $this->TEST_PUBLIC_KEY, '' )
-			&& Configuration::updateValue( $this->LIVE_SECRET_KEY, '' )
-			&& Configuration::updateValue( $this->LIVE_PUBLIC_KEY, '' )
+			&& Configuration::updateValue( $this->APP_KEY, '' )
+			&& Configuration::updateValue( $this->PUBLIC_KEY, '' )
 			&& Configuration::updateValue( $this->LOGO_URL, '' )
 			&& Configuration::updateValue( $this->CHECKOUT_MODE, 'delayed' )
 			&& Configuration::updateValue( $this->ORDER_STATUS, 3) // Shipped
@@ -79,11 +72,8 @@ abstract class AbstractLunarMethod
     {
         return (
             Configuration::deleteByName( $this->METHOD_STATUS )
-            && Configuration::deleteByName( $this->TRANSACTION_MODE )
-            && Configuration::deleteByName( $this->TEST_SECRET_KEY )
-            && Configuration::deleteByName( $this->TEST_PUBLIC_KEY )
-            && Configuration::deleteByName( $this->LIVE_SECRET_KEY )
-            && Configuration::deleteByName( $this->LIVE_PUBLIC_KEY )
+            && Configuration::deleteByName( $this->APP_KEY )
+            && Configuration::deleteByName( $this->PUBLIC_KEY )
             && Configuration::deleteByName( $this->LOGO_URL )
             && Configuration::deleteByName( $this->CHECKOUT_MODE )
             && Configuration::deleteByName( $this->ORDER_STATUS )
@@ -100,11 +90,8 @@ abstract class AbstractLunarMethod
     {
         return [
             $this->METHOD_STATUS 		 => Configuration::get( $this->METHOD_STATUS ),
-			$this->TRANSACTION_MODE  	 => Configuration::get( $this->TRANSACTION_MODE ),
-			$this->TEST_PUBLIC_KEY   	 => Configuration::get( $this->TEST_PUBLIC_KEY ),
-			$this->TEST_SECRET_KEY   	 => Configuration::get( $this->TEST_SECRET_KEY ),
-			$this->LIVE_PUBLIC_KEY   	 => Configuration::get( $this->LIVE_PUBLIC_KEY ),
-			$this->LIVE_SECRET_KEY   	 => Configuration::get( $this->LIVE_SECRET_KEY ),
+			$this->APP_KEY   	 		 => Configuration::get( $this->APP_KEY ),
+			$this->PUBLIC_KEY   	 	 => Configuration::get( $this->PUBLIC_KEY ),
 			$this->LOGO_URL    			 => Configuration::get( $this->LOGO_URL ),
 			$this->CHECKOUT_MODE     	 => Configuration::get( $this->CHECKOUT_MODE ),
 			$this->ORDER_STATUS      	 => Configuration::get( $this->ORDER_STATUS ),
@@ -143,26 +130,14 @@ abstract class AbstractLunarMethod
             $isSaveAllowed = false;
         }
 
-        // @TODO remove these 4 lines and activate validation
-        $test_secret_key = Tools::getvalue( $this->TEST_SECRET_KEY ) ?? '';
-        $test_public_key = Tools::getvalue( $this->TEST_PUBLIC_KEY ) ?? '';
-        $live_secret_key = Tools::getvalue( $this->LIVE_SECRET_KEY ) ?? '';
-        $live_public_key = Tools::getvalue( $this->LIVE_PUBLIC_KEY ) ?? '';
+        // @TODO remove these lines and activate validation
+        $app_key = Tools::getvalue( $this->APP_KEY ) ?? '';
+        $public_key = Tools::getvalue( $this->PUBLIC_KEY ) ?? '';
 
         // $isSaveAllowed = $this->validateKeys();        
 
-        $transactionMode = Tools::getvalue( $this->TRANSACTION_MODE );
-        Configuration::updateValue( $this->TRANSACTION_MODE, $transactionMode );
-        
-        if ('test' == $transactionMode) {
-            Configuration::updateValue( $this->TEST_PUBLIC_KEY, $test_public_key );
-            Configuration::updateValue( $this->TEST_SECRET_KEY, $test_secret_key );
-        }
-        if ('live' == $transactionMode) {
-            Configuration::updateValue( $this->LIVE_PUBLIC_KEY, $live_public_key );
-            Configuration::updateValue( $this->LIVE_SECRET_KEY, $live_secret_key );
-        }
-        
+    	Configuration::updateValue( $this->APP_KEY, $app_key );
+		Configuration::updateValue( $this->PUBLIC_KEY, $public_key );
         Configuration::updateValue( $this->LOGO_URL, Tools::getValue( $this->LOGO_URL ) );
         Configuration::updateValue( $this->CHECKOUT_MODE, Tools::getValue( $this->CHECKOUT_MODE ) );
         Configuration::updateValue( $this->ORDER_STATUS, Tools::getValue( $this->ORDER_STATUS ) );
@@ -225,11 +200,7 @@ abstract class AbstractLunarMethod
 	 */
 	public function isConfigured()
 	{
-		if ('test' == Configuration::get($this->TRANSACTION_MODE)) {
-			return Configuration::get($this->TEST_PUBLIC_KEY) && Configuration::get($this->TEST_SECRET_KEY);
-		} else {
-			return Configuration::get($this->LIVE_PUBLIC_KEY) && Configuration::get($this->LIVE_SECRET_KEY);
-		}
+		return Configuration::get($this->APP_KEY) && Configuration::get($this->PUBLIC_KEY)
 	}
 
 	/**
@@ -239,53 +210,28 @@ abstract class AbstractLunarMethod
     {
         $isSaveAllowed = true;
         
-        // $test_secret_key = Tools::getvalue( $this->TEST_SECRET_KEY ) ?? '';
-        // $test_public_key = Tools::getvalue( $this->TEST_PUBLIC_KEY ) ?? '';
-        // $live_secret_key = Tools::getvalue( $this->LIVE_SECRET_KEY ) ?? '';
-        // $live_public_key = Tools::getvalue( $this->LIVE_PUBLIC_KEY ) ?? '';
+        // $app_key = Tools::getvalue( $this->APP_KEY ) ?? '';
+        // $public_key = Tools::getvalue( $this->PUBLIC_KEY ) ?? '';
 
-        // if ('test' == $transactionMode) {
         // 	/** Load db value or set it to empty **/
-        // 	$test_secret_key = Configuration::get( $this->TEST_SECRET_KEY ) ?? '';
-        // 	$validationPublicKeyMessage = $this->validateAppKeyField(Tools::getvalue( $this->TEST_SECRET_KEY ), 'test');
+        // 	$app_key = Configuration::get( $this->APP_KEY ) ?? '';
+        // 	$validationPublicKeyMessage = $this->validateAppKeyField(Tools::getvalue( $this->APP_KEY ), 'live');
         // 	if($validationPublicKeyMessage){
-        // 		$this->context->controller->errors[$this->TEST_SECRET_KEY] = $validationPublicKeyMessage;
+        // 		$this->context->controller->errors[$this->APP_KEY] = $validationPublicKeyMessage;
         // 		$isSaveAllowed = false;
         // 	} else{
-        // 		$test_secret_key = Tools::getvalue( $this->TEST_SECRET_KEY ) ?? '';
+        // 		$app_key = Tools::getvalue( $this->APP_KEY ) ?? '';
         // 	}
 
         // 	/** Load db value or set it to empty **/
-        // 	$test_public_key = Configuration::get( $this->TEST_PUBLIC_KEY ) ?? '';
-        // 	$validationAppKeyMessage = $this->validatePublicKeyField(Tools::getvalue( $this->TEST_PUBLIC_KEY ), 'test');
+        // 	$public_key = Configuration::get( $this->PUBLIC_KEY ) ?? '';
+        // 	$validationAppKeyMessage = $this->validatePublicKeyField(Tools::getvalue( $this->PUBLIC_KEY ), 'live');
         // 	if($validationAppKeyMessage){
-        // 		$this->context->controller->errors[$this->TEST_PUBLIC_KEY] = $validationAppKeyMessage;
+        // 		$this->context->controller->errors[$this->PUBLIC_KEY] = $validationAppKeyMessage;
         // 		$isSaveAllowed = false;
         // 	} else{
-        // 		$test_public_key = Tools::getvalue( $this->TEST_PUBLIC_KEY ) ?? '';
+        // 		$public_key = Tools::getvalue( $this->PUBLIC_KEY ) ?? '';
         // 	}
-
-        // } elseif ('live' == $transactionMode) {
-        // 	/** Load db value or set it to empty **/
-        // 	$live_secret_key = Configuration::get( $this->LIVE_SECRET_KEY ) ?? '';
-        // 	$validationPublicKeyMessage = $this->validateAppKeyField(Tools::getvalue( $this->LIVE_SECRET_KEY ), 'live');
-        // 	if($validationPublicKeyMessage){
-        // 		$this->context->controller->errors[$this->LIVE_SECRET_KEY] = $validationPublicKeyMessage;
-        // 		$isSaveAllowed = false;
-        // 	} else{
-        // 		$live_secret_key = Tools::getvalue( $this->LIVE_SECRET_KEY ) ?? '';
-        // 	}
-
-        // 	/** Load db value or set it to empty **/
-        // 	$live_public_key = Configuration::get( $this->LIVE_PUBLIC_KEY ) ?? '';
-        // 	$validationAppKeyMessage = $this->validatePublicKeyField(Tools::getvalue( $this->LIVE_PUBLIC_KEY ), 'live');
-        // 	if($validationAppKeyMessage){
-        // 		$this->context->controller->errors[$this->LIVE_PUBLIC_KEY] = $validationAppKeyMessage;
-        // 		$isSaveAllowed = false;
-        // 	} else{
-        // 		$live_public_key = Tools::getvalue( $this->LIVE_PUBLIC_KEY ) ?? '';
-        // 	}
-        // }
 
         return $isSaveAllowed;
     }
@@ -407,49 +353,10 @@ abstract class AbstractLunarMethod
 						)
 					),
 					array(
-						'type'     => 'select',
-                        'tab'      => $this->tabName,
-						'lang'     => true,
-						'label'    => '<span data-toggle="tooltip" title="' . $this->t( 'In test mode, you can create a successful transaction with the card number 4111 1111 1111 1111 with any CVC and a valid expiration date.' ) . '">' . $this->t( 'Transaction mode' ) . '<i class="process-icon-help-new help-icon" aria-hidden="true"></i></span>',
-						'name'     => $this->TRANSACTION_MODE,
-						'class'    => "lunar-config",
-						'options'  => array(
-							'query' => array(
-								array(
-									'id_option' => 'live',
-									'name'      => 'Live',
-								),
-								array(
-									'id_option' => 'test',
-									'name'      => 'Test',
-								),
-							),
-							'id'    => 'id_option',
-							'name'  => 'name',
-						),
-						'required' => true,
-					),
-					array(
-						'type'     => 'text',
-                        'tab'      => $this->tabName,
-						'label'    => '<span data-toggle="tooltip" title="' . $this->t( 'Get it from your Lunar dashboard' ) . '">' . $this->t( 'Test mode App Key' ) . '<i class="process-icon-help-new help-icon" aria-hidden="true"></i></span>',
-						'name'     => $this->TEST_SECRET_KEY,
-						'class'    => "lunar-config",
-						'required' => true,
-					),
-					array(
-						'type'     => 'text',
-                        'tab'      => $this->tabName,
-						'label'    => '<span data-toggle="tooltip" title="' . $this->t( 'Get it from your Lunar dashboard' ) . '">' . $this->t( 'Test mode Public Key' ) . '<i class="process-icon-help-new help-icon" aria-hidden="true"></i></span>',
-						'name'     => $this->TEST_PUBLIC_KEY,
-						'class'    => "lunar-config",
-						'required' => true,
-					),
-					array(
 						'type'     => 'text',
                         'tab'      => $this->tabName,
 						'label'    => '<span data-toggle="tooltip" title="' . $this->t( 'Get it from your Lunar dashboard' ) . '">' . $this->t( 'App Key' ) . '<i class="process-icon-help-new help-icon" aria-hidden="true"></i></span>',
-						'name'     => $this->LIVE_SECRET_KEY,
+						'name'     => $this->APP_KEY,
 						'class'    => "lunar-config",
 						'required' => true,
 					),
@@ -457,7 +364,7 @@ abstract class AbstractLunarMethod
 						'type'     => 'text',
                         'tab'      => $this->tabName,
 						'label'    => '<span data-toggle="tooltip" title="' . $this->t( 'Get it from your Lunar dashboard' ) . '">' . $this->t( 'Public Key' ) . '<i class="process-icon-help-new help-icon" aria-hidden="true"></i></span>',
-						'name'     => $this->LIVE_PUBLIC_KEY,
+						'name'     => $this->PUBLIC_KEY,
 						'class'    => "lunar-config",
 						'required' => true,
 					),

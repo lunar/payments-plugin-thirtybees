@@ -27,13 +27,15 @@ abstract class AbstractLunarFrontController extends \ModuleFrontController
 
     /** @var Lunarpayment */
     public $module;
+    
+    public $errors = [];
+    public $ssl = true;
 
     /** @var LunarCardMethod|LunarMobilePayMethod|null */
     protected $paymentMethod = null;
     
     protected ApiClient $lunarApiClient;
 
-    public $errors = [];
     protected string $intentIdKey = '_lunar_intent_id';
     protected bool $testMode = false;
     protected ?Cart $contextCart = null; // to not interfere with static $cart from PS 1.7
@@ -64,17 +66,12 @@ abstract class AbstractLunarFrontController extends \ModuleFrontController
 
         $this->validate();
 
-        $this->testMode = 'test' == $this->getConfigValue('TRANSACTION_MODE');
-        if ($this->testMode) {
-            $this->publicKey =  $this->getConfigValue('TEST_PUBLIC_KEY');
-            $privateKey =  $this->getConfigValue('TEST_SECRET_KEY');
-        } else {
-            $this->publicKey = $this->getConfigValue('LIVE_PUBLIC_KEY');
-            $privateKey = $this->getConfigValue('LIVE_SECRET_KEY');
-        }
+        $this->testMode = (bool) $_COOKIE['lunar_testmode'];
+
+        $this->publicKey = $this->getConfigValue('PUBLIC_KEY');
 
         /** API Client instance */
-        $this->lunarApiClient = new ApiClient($privateKey);
+        $this->lunarApiClient = new ApiClient($this->getConfigValue('APP_KEY'), null, $this->testMode);
     }
 
     /**
