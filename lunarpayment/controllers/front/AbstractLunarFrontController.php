@@ -163,8 +163,6 @@ abstract class AbstractLunarFrontController extends \ModuleFrontController
      */
     protected function redirectBackWithNotification(string $errorMessage)
     {
-        // $this->errors['error_code'] = 'Lunar error';
-        // $this->errors['msg_long'] = $errorMessage;
         $this->errors[] = Tools::displayError($this->errorMessage($errorMessage));
         Tools::redirect($this->context->link->getPageLink('order', true, (int) $this->context->language->id));
     }
