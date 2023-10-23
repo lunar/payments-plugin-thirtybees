@@ -65,6 +65,7 @@ class LunarPayment extends PaymentModule
 			&& $this->registerHook( 'BackOfficeHeader' )
 			&& $this->registerHook( 'actionOrderStatusPostUpdate' )
 			&& $this->registerHook( 'actionOrderSlipAdd' )
+			&& $this->registerHook( 'displayPaymentEU' ) // Advanced EU checkout module
 			&& $this->createDbTables()
 			&& $this->cardMethod->install()
 			&& $this->mobilePayMethod->install()
@@ -211,24 +212,10 @@ class LunarPayment extends PaymentModule
 			'module_path' => $this->_path,
 		];
 
-		if (
-			'enabled' == Configuration::get( $this->cardMethod->METHOD_STATUS)
-			&& $this->cardMethod->isConfigured()
-		) {
-			$smarty_vars['lunar_card_title'] = Configuration::get($this->cardMethod->METHOD_TITLE);
-			$smarty_vars['lunar_card_desc'] = Configuration::get($this->cardMethod->METHOD_DESCRIPTION);
-			$smarty_vars['accepted_cards'] = explode( ',', Configuration::get( $this->cardMethod->ACCEPTED_CARDS ) );
-			$smarty_vars['lunar_card_action_url'] = $this->context->link->getModuleLink( $this->name, 'redirect', ['lunar_method' => $this->cardMethod->METHOD_NAME], true );
-		}
+		$card_vars = $this->getSmartyPaymentMethodVars($this->cardMethod);
+		$mobilepay_vars = $this->getSmartyPaymentMethodVars($this->mobilePayMethod);
 
-		if (
-			'enabled' == Configuration::get( $this->mobilePayMethod->METHOD_STATUS)
-			&& $this->mobilePayMethod->isConfigured()
-		) {
-			$smarty_vars['lunar_mobilepay_title'] = Configuration::get($this->mobilePayMethod->METHOD_TITLE);
-			$smarty_vars['lunar_mobilepay_desc'] = Configuration::get($this->mobilePayMethod->METHOD_DESCRIPTION);
-			$smarty_vars['lunar_mobilepay_action_url'] = $this->context->link->getModuleLink( $this->name, 'redirect', ['lunar_method' => $this->mobilePayMethod->METHOD_NAME], true );
-		}
+		$smarty_vars = array_merge($smarty_vars, $card_vars, $mobilepay_vars);
 
 		$this->context->smarty->assign($smarty_vars);
 
@@ -476,4 +463,78 @@ class LunarPayment extends PaymentModule
 
 	// 	return $this->display( __FILE__, 'views/templates/admin/modal.tpl' );
 	// }
+
+	/**
+	 * Hook for Advanced EU checkout
+	 *
+	 * @return array|null
+	 * @throws PrestaShopException
+	 */
+	public function hookDisplayPaymentEU()
+	{
+		$card_vars = $this->getSmartyPaymentMethodVars($this->cardMethod);
+		$lunarCard = $card_vars['lunar_card'];
+
+		$mobilepay_vars = $this->getSmartyPaymentMethodVars($this->mobilePayMethod);
+		$lunarMobilePay = $mobilepay_vars['lunar_mobilepay'];
+
+		$smarty_vars = ['module_path' => $this->_path];
+		$this->context->smarty->assign(array_merge($smarty_vars, $card_vars, $mobilepay_vars));
+		$templateDisplay = $this->display(__FILE__, 'views/templates/hook/payment.tpl' );
+
+		if ($lunarCard) {
+			$paymentOptions[] = [
+				'cta_text' => $lunarCard['title'] . ' <span data-method="lunar-card"></span>',
+				'logo'	 => $this->_path . 'views/img/visa.svg',
+				'form' => $templateDisplay,
+			];
+		}
+
+		// Inset template only once
+		if ($lunarCard && $lunarMobilePay) {
+			$templateDisplay = '';
+		}
+
+		if ($lunarMobilePay) {
+			$paymentOptions[] = [
+				'cta_text' => $lunarMobilePay['title'] . ' <span data-method="lunar-mobilepay"></span>',
+				'logo'	 => $lunarMobilePay['logo'],
+				'form' => $templateDisplay,
+			];
+		}
+
+		return $paymentOptions;
+	}
+
+	private function getSmartyPaymentMethodVars($paymentMethod)
+	{
+		$smarty_vars = [];
+
+		if (
+			'enabled' == Configuration::get( $paymentMethod->METHOD_STATUS)
+			&& $paymentMethod->isConfigured()
+		) {
+			$smarty_vars['lunar_' . strtolower($paymentMethod->METHOD_NAME)] = [
+				'title' => Configuration::get($paymentMethod->METHOD_TITLE),
+				'desc' => Configuration::get($paymentMethod->METHOD_DESCRIPTION),
+				'action_url' => $this->context->link->getModuleLink( $this->name, 'redirect', ['lunar_method' => $paymentMethod->METHOD_NAME], true ),
+			];
+			
+			if ('card' == $paymentMethod->METHOD_NAME) {
+				$smarty_vars['lunar_card']['accepted_cards'] = explode( ',', Configuration::get( $paymentMethod->ACCEPTED_CARDS ) );
+
+				$acceptedCardsRendered = '';
+				foreach ($smarty_vars['lunar_card']['accepted_cards'] as $cardFileName) {
+					$acceptedCardsRendered .= '<li><img src=\''.$this->_path.'views/img/'.$cardFileName.'\'/></li>';
+				}
+				$smarty_vars['lunar_card']['accepted_cards_rendered'] = '<ul class=\'cards-rendered\'>'.$acceptedCardsRendered.'</ul>';
+			}
+
+			'mobilePay' == $paymentMethod->METHOD_NAME
+				? $smarty_vars['lunar_mobilepay']['logo'] = $this->_path . 'views/img/mobilepay-logo.png'
+				: null;
+		}
+
+		return $smarty_vars;
+	}
 }
