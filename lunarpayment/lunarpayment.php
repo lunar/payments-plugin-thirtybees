@@ -261,21 +261,28 @@ class LunarPayment extends PaymentModule
 		$id_order = $params['id_order'];
 		$order    = new Order( (int) $id_order );
 
-		if ( $order->module == $this->name ) {
-			$order_token = Tools::getAdminToken( 'AdminOrders' . (int)  Tab::getIdFromClassName('AdminOrders') . (int) $this->context->employee->id );
-			$dbLunarTransaction = $this->getLunarTransactionByOrderId($id_order);
-
-			$this->context->smarty->assign( array(
-				'id_order'           			  => $id_order,
-				'order_token'        			  => $order_token,
-				"lunartransaction" 				  => $dbLunarTransaction,
-				'not_captured_text'	  			  => $this->l('Capture Transaction prior to Refund via Lunar'),
-				'already_refunded_text'	  		  => $this->l('Transaction already refunded via Lunar'),
-				'checkbox_text' 	  			  => $this->l('Refund Lunar')
-			) );
-
-			return $this->display( __FILE__, 'views/templates/hook/admin-order.tpl' );
+		if ( $order->module != $this->name ) {
+			return;
 		}
+
+		$order_token = Tools::getAdminToken( 'AdminOrders' . (int)  Tab::getIdFromClassName('AdminOrders') . (int) $this->context->employee->id );
+		$dbLunarTransaction = $this->getLunarTransactionByOrderId($id_order);
+
+		if (!$dbLunarTransaction) {
+			return;
+		}
+
+		$formActionUrl = $this->context->link->getAdminLink('AdminOrders') . "&id_order=$id_order&vieworder&token=$order_token";
+
+		$this->context->smarty->assign( array(
+			'form_action_url'     			  => $formActionUrl,
+			'lunartransaction' 				  => $dbLunarTransaction,
+			'not_captured_text'	  			  => $this->l('Capture Transaction prior to Refund via Lunar'),
+			'already_refunded_text'	  		  => $this->l('Transaction already refunded via Lunar'),
+			'checkbox_text' 	  			  => $this->l('Refund Lunar')
+		) );
+
+		return $this->display( __FILE__, 'views/templates/hook/admin-order.tpl' );
 	}
 
 	public function getLunarTransactionByOrderId($orderId)
@@ -472,14 +479,21 @@ class LunarPayment extends PaymentModule
 	 */
 	public function hookDisplayPaymentEU()
 	{
+		$paymentOptions = [];
+
 		$card_vars = $this->getSmartyPaymentMethodVars($this->cardMethod);
-		$lunarCard = $card_vars['lunar_card'];
+		$lunarCard = $card_vars['lunar_card'] ?? null;
 
 		$mobilepay_vars = $this->getSmartyPaymentMethodVars($this->mobilePayMethod);
-		$lunarMobilePay = $mobilepay_vars['lunar_mobilepay'];
+		$lunarMobilePay = $mobilepay_vars['lunar_mobilepay'] ?? null;
+
+		if (!$lunarCard && !$lunarMobilePay) {
+			return $paymentOptions;
+		}
 
 		$smarty_vars = ['module_path' => $this->_path];
 		$this->context->smarty->assign(array_merge($smarty_vars, $card_vars, $mobilepay_vars));
+
 		$templateDisplay = $this->display(__FILE__, 'views/templates/hook/payment.tpl' );
 
 		if ($lunarCard) {
@@ -490,7 +504,7 @@ class LunarPayment extends PaymentModule
 			];
 		}
 
-		// Inset template only once
+		// Insert template only once
 		if ($lunarCard && $lunarMobilePay) {
 			$templateDisplay = '';
 		}

@@ -1,180 +1,192 @@
-{if isset($lunar_card['action_url']) || isset($lunar_mobilepay['action_url'])}
+<script>
+{literal}
+    document.addEventListener("DOMContentLoaded", function() {
+        {/literal}
+            {assign var="accepted_cards_rendered" value=""}
 
-    {assign var="accepted_cards_rendered" value=""}
+            {if isset($lunar_card['accepted_cards_rendered'])}
+                {$accepted_cards_rendered=$lunar_card['accepted_cards_rendered']}
+            {/if}
+        {literal}
 
-    {if isset($lunar_card['accepted_cards_rendered'])}
-        {$accepted_cards_rendered=$lunar_card['accepted_cards_rendered']}
-    {/if}
+        let renderedCardImages = "{/literal}{$accepted_cards_rendered}{literal}"
+        $('img[src*="lunarpayment/views/img/visa.svg"]').replaceWith(`<span>${renderedCardImages}</span>`);
 
-    <script>
-    {literal}
-        document.addEventListener("DOMContentLoaded", function() {
+        $('.payment_module').on('click', (e) => {
+            $('#lunar-card').prop('hidden', true);
+            $('#lunar-mobilepay').prop('hidden', true);
+        });
 
-            let renderedCardImages = "{/literal}{$accepted_cards_rendered}{literal}"
-            $('img[src*="lunarpayment/views/img/visa.svg"]').replaceWith(`<span>${renderedCardImages}</span>`);
+        $('.lunar-payment').on('click', (e) => {
+            let $methodInput = $(e.target).parents('div.lunar').find('input');
+            let method = $methodInput.val();
+            
+            $methodInput.prop('checked', true);
 
-            $('.payment_module').on('click', (e) => {
-                $('#lunar-card').prop('hidden', true);
-                $('#lunar-mobilepay').prop('hidden', true);
-            });
+            $(`#${method}`).prop('hidden', false);
+        });
 
-            $('.lunar-payment').on('click', (e) => {
-                let $methodInput = $(e.target).parents('div.lunar').find('input');
-                let method = $methodInput.val();
-                
-                $methodInput.prop('checked', true);
+        /** 
+        * Compatibility with Advanced EU compliance module
+        */
+        $('#HOOK_ADVANCED_PAYMENT p.payment_module').on('click', (e) => {
 
-                $(`#${method}`).prop('hidden', false);
-            });
+            $('.cart_navigation form[action*="lunarpayment"]').remove();
+            $('#confirmOrder').show();
 
-            /** 
-            * Compatibility with Advanced EU compliance module
-            */
-            $('#HOOK_ADVANCED_PAYMENT p.payment_module').on('click', (e) => {
+            let method = $('.payment_selected .payment_option_cta').children('span').data('method');
 
-                $('.cart_navigation form[action*="lunarpayment"]').remove();
-                $('#confirmOrder').show();
+            if (!method) {
+                return;
+            }
 
-                let method = $('.payment_selected .payment_option_cta').children('span').data('method');
+            let form = $(`#${method}`).clone()
+            form.prop('id', '')
+            form.addClass('pull-right')
 
-                if (!method) {
+            if ($('#confirmOrder').length) {
+                $('#confirmOrder').hide();
+            }
+
+            $('.cart_navigation').append(form);
+            $('.cart_navigation form').prop('hidden', false);
+
+            function checkTOS(e) {
+                e.preventDefault();
+                let handler = new PaymentOptionHandler();
+                if (handler.checkTOS() === false) {
+                    PrestaShop.showError(aeuc_tos_err_str);
                     return;
                 }
+                form.submit();
+            }
 
-                let form = $(`#${method}`).clone()
-                form.prop('id', '')
-                form.addClass('pull-right')
-
-                if ($('#confirmOrder').length) {
-                    $('#confirmOrder').hide();
-                }
-
-                $('.cart_navigation').append(form);
-                $('.cart_navigation form').prop('hidden', false);
-            });
-
+            form.children('button').on('click', (e) => checkTOS(e));
         });
-    {/literal}
-    </script>
 
-    {if isset($lunar_card['action_url']) }
-        <div class="row lunar">
-            <div class="col-xs-12 col-md-12">
-                <div class="payment_module lunar-payment clearfix"
-                        style=" border: 1px solid #d6d4d4; display: block; font-size: 17px; font-weight: bold; padding: 20px; cursor: pointer">
+    });
+{/literal}
+</script>
 
-                        <div style="float:left; width:100%">
-                            <span style="margin-right: 10px;">{l s={$lunar_card['title']} mod=lunarpayment}</span>
-                            <span>
-                                <ul class="cards">
-                                    {foreach from=$lunar_card['accepted_cards'] item=logo}
-                                        <li>
-                                            <img src="{$module_path}/views/img/{$logo}" title="{$logo}" alt="{$logo}"/>
-                                        </li>
-                                    {/foreach}
-                                </ul>
-                            </span>
-                            
-                            <label class="lunar-radio">
-                                <input type="radio" name="lunar-payment" value="lunar-card" />
-                            </label>
-
-                            <small style="font-size: 12px; display: block; font-weight: normal; letter-spacing: 1px; max-width:100%;">
-                                {l s={$lunar_card['desc']} mod=lunarpayment}
-                            </small>
-                        </div>
-
-                </div>
-            </div>
-        </div>
-    {/if}
-
-    {if isset($lunar_mobilepay['action_url']) }
-        <div class="row lunar">
-            <div class="col-xs-12 col-md-12">
-                <div class="payment_module lunar-payment clearfix"
+{if isset($lunar_card) }
+    <div class="row lunar">
+        <div class="col-xs-12 col-md-12">
+            <div class="payment_module lunar-payment clearfix"
                     style=" border: 1px solid #d6d4d4; display: block; font-size: 17px; font-weight: bold; padding: 20px; cursor: pointer">
 
-                        <div style="float:left; width:100%">
-                            <span style="margin-right: 10px;">{l s={$lunar_mobilepay['title']} mod=lunarpayment }</span>
-                            <span>
-                                <img style="color: red; height:50px;" 
-                                    id="mobilepay-logo" src="{$lunar_mobilepay['logo']}" title="mobilepay-logo" alt="mobilepay-logo"/>
-                            </span>
+                    <div style="float:left; width:100%">
+                        <span style="margin-right: 10px;">{l s={$lunar_card['title']} mod=lunarpayment}</span>
+                        <span>
+                            <ul class="cards">
+                                {foreach from=$lunar_card['accepted_cards'] item=logo}
+                                    <li>
+                                        <img src="{$module_path}/views/img/{$logo}" title="{$logo}" alt="{$logo}"/>
+                                    </li>
+                                {/foreach}
+                            </ul>
+                        </span>
+                        
+                        <label class="lunar-radio">
+                            <input type="radio" name="lunar-payment" value="lunar-card" />
+                        </label>
 
-                            <label class="lunar-radio">
-                                <input type="radio" name="lunar-payment" value="lunar-mobilepay" />
-                            </label>
+                        <small style="font-size: 12px; display: block; font-weight: normal; letter-spacing: 1px; max-width:100%;">
+                            {l s={$lunar_card['desc']} mod=lunarpayment}
+                        </small>
+                    </div>
 
-                            <small style="font-size: 12px; display: block; font-weight: normal; letter-spacing: 1px; max-width:100%;">
-                                {l s={$lunar_mobilepay['desc']} mod=lunarpayment }
-                            </small>
-                        </div>
-
-                </div>
             </div>
         </div>
-    {/if}
+    </div>
+{/if}
 
+{if isset($lunar_mobilepay) }
+    <div class="row lunar">
+        <div class="col-xs-12 col-md-12">
+            <div class="payment_module lunar-payment clearfix"
+                style=" border: 1px solid #d6d4d4; display: block; font-size: 17px; font-weight: bold; padding: 20px; cursor: pointer">
 
+                    <div style="float:left; width:100%">
+                        <span style="margin-right: 10px;">{l s={$lunar_mobilepay['title']} mod=lunarpayment }</span>
+                        <span>
+                            <img style="color: red; height:50px;" 
+                                id="mobilepay-logo" src="{$lunar_mobilepay['logo']}" title="mobilepay-logo" alt="mobilepay-logo"/>
+                        </span>
+
+                        <label class="lunar-radio">
+                            <input type="radio" name="lunar-payment" value="lunar-mobilepay" />
+                        </label>
+
+                        <small style="font-size: 12px; display: block; font-weight: normal; letter-spacing: 1px; max-width:100%;">
+                            {l s={$lunar_mobilepay['desc']} mod=lunarpayment }
+                        </small>
+                    </div>
+
+            </div>
+        </div>
+    </div>
+{/if}
+
+{if isset($lunar_card) }
     <form id="lunar-card" action="{$lunar_card['action_url']}" method="POST" hidden>
         <button class="btn btn-lg btn-success pull-right" type="submit">
             <div>Pay with {$lunar_card['title']}</div>
         </button>
     </form>
+{/if}
+{if isset($lunar_mobilepay) }
     <form id="lunar-mobilepay" action="{$lunar_mobilepay['action_url']}" method="POST" hidden>
         <button class="btn btn-lg btn-success pull-right" type="submit">
             <div>Pay with {$lunar_mobilepay['title']}</div>
         </button>
     </form>
-
-
-    <style type="text/css">
-        .lunar-payment {
-            margin-bottom: 1rem;
-        }
-
-        .lunar-radio {
-            float: right;
-            top: 1rem;
-            right: 1.5rem;
-        }
-
-        .lunar-radio > input {
-            opacity: 1;
-            height: 2rem;
-            width: 2rem;
-        }
-
-        .cards {
-            display: inline-flex;
-        }
-        .cards li {
-            width: 25%;
-            padding: 3px;
-        }
-        .cards li img {
-            vertical-align: middle;
-            max-width: 100%;
-            height: 40px;
-        }
-        
-        #mobilepay-logo {
-            height: 40px;
-            margin-left: 5px;
-            margin-right: 5px;
-        }
-
-        /** 
-        * Style for Advanced EU Compliance module
-        */
-        .cards-rendered {
-            display: inline-flex;
-        }
-        .cards-rendered li img {
-            height: 50px;
-            padding: 3px;
-        }
-    </style>
-
 {/if}
+
+
+<style type="text/css">
+    .lunar-payment {
+        margin-bottom: 1rem;
+    }
+
+    .lunar-radio {
+        float: right;
+        top: 1rem;
+        right: 1.5rem;
+    }
+
+    .lunar-radio > input {
+        opacity: 1;
+        height: 2rem;
+        width: 2rem;
+    }
+
+    .cards {
+        display: inline-flex;
+    }
+    .cards li {
+        width: 25%;
+        padding: 3px;
+    }
+    .cards li img {
+        vertical-align: middle;
+        max-width: 100%;
+        height: 40px;
+    }
+    
+    #mobilepay-logo {
+        height: 40px;
+        margin-left: 5px;
+        margin-right: 5px;
+    }
+
+    /** 
+    * Style for Advanced EU Compliance module
+    */
+    .cards-rendered {
+        display: inline-flex;
+    }
+    .cards-rendered li img {
+        height: 50px;
+        padding: 3px;
+    }
+</style>

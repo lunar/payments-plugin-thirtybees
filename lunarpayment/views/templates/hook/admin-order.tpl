@@ -143,7 +143,7 @@
 <div id="lunar" class="row" style="margin-top:5%;">
     <div class="panel">
         <form id="lunar_form"
-                action="{$link->getAdminLink('AdminOrders', false)|escape:'htmlall':'UTF-8'}&amp;id_order={$id_order|escape:'htmlall':'UTF-8'}&amp;vieworder&amp;token={$order_token|escape:'htmlall':'UTF-8'}"
+                action="{$form_action_url}"
                 method="post">
             <fieldset>
                 <legend class="panel-heading">
