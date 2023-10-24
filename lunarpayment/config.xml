@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module>
+  <name><![CDATA[lunarpayment]]></name>
+  <displayName><![CDATA[Lunar]]></displayName>
+  <version><![CDATA[2.0.0]]></version>
+  <description><![CDATA[Receive payments with Lunar]]></description>
+  <author><![CDATA[Lunar]]></author>
+  <author_uri/>
+  <tab><![CDATA[payments_gateways]]></tab>
+  <confirmUninstall><![CDATA[Are you sure about removing Lunar?]]></confirmUninstall>
+  <is_configurable>1</is_configurable>
+  <need_instance>1</need_instance>
+  <limited_countries/>
+</module>

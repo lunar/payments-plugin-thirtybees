@@ -1,140 +1,192 @@
-{if $lunar_status == 'enabled'}
-    <style type="text/css">
-        .cards {
-            display: inline-flex;
-        }
+<script>
+{literal}
+    document.addEventListener("DOMContentLoaded", function() {
+        {/literal}
+            {assign var="accepted_cards_rendered" value=""}
 
-        .cards li img {
-            vertical-align: middle;
-            margin-right: 10px;
-            width: 37px;
-            height: 27px;
-        }
-    </style>
-    <script type="text/javascript" src="https://sdk.paylike.io/a.js"></script>
-    <script>
-        /** Initialize lunar public key object. */
-        var LUNAR_PUBLIC_KEY = {
-            key: "{$LUNAR_PUBLIC_KEY|escape:'htmlall':'UTF-8'}"
-        };
+            {if isset($lunar_card['accepted_cards_rendered'])}
+                {$accepted_cards_rendered=$lunar_card['accepted_cards_rendered']}
+            {/if}
+        {literal}
 
-        /** Initialize api client. */
-        var lunar = Paylike(LUNAR_PUBLIC_KEY);
+        let renderedCardImages = "{/literal}{$accepted_cards_rendered}{literal}"
+        $('img[src*="lunarpayment/views/img/visa.svg"]').replaceWith(`<span>${renderedCardImages}</span>`);
 
-        /** Initialize payment variables. */
-        var test_mode = "{$test_mode}";
-        var shop_name = "{$shop_name|escape:'htmlall':'UTF-8'}";
-        var PS_SSL_ENABLED = "{$PS_SSL_ENABLED|escape:'htmlall':'UTF-8'}";
-        var host = "{$http_host|escape:'htmlall':'UTF-8'}";
-        var BASE_URI = "{$base_uri|escape:'htmlall':'UTF-8'}";
-        var popup_title = "{$popup_title nofilter}";
-        var popup_description = "{$popup_description nofilter}"; //html variable can not be escaped;
-        var currency_code = "{$currency_code|escape:'htmlall':'UTF-8'}";
-        var amount = {$amount|escape:'htmlall':'UTF-8'};
-        var exponent = {$exponent};
-        var id_cart = {$id_cart}; //html variable can not be escaped;
-        var products = {$products}; //html variable can not be escaped;
-        var name = "{$name|escape:'htmlall':'UTF-8'}";
-        var email = "{$email|escape:'htmlall':'UTF-8'}";
-        var telephone = "{$telephone|escape:'htmlall':'UTF-8'}";
-        var address = "{$address|escape:'htmlall':'UTF-8'}";
-        var ip = "{$ip|escape:'htmlall':'UTF-8'}";
-        var locale = "{$locale|escape:'htmlall':'UTF-8'}";
-        var platform_version = "{$platform_version|escape:'htmlall':'UTF-8'}";
-        var ecommerce = "{$ecommerce|escape:'htmlall':'UTF-8'}";
-        var module_version = "{$module_version|escape:'htmlall':'UTF-8'}";
-        var url_controller = "{$redirect_url|escape:'htmlall':'UTF-8'}";
-        var qry_str = "{$qry_str}"; //html variable can not be escaped;
+        $('.payment_module').on('click', (e) => {
+            $('#lunar-card').prop('hidden', true);
+            $('#lunar-mobilepay').prop('hidden', true);
+        });
 
-        function pay() {
-            lunar.pay({
-                    test: ('test' == test_mode) ? (true) : (false),
-                    amount: {
-                        currency: currency_code,
-                        exponent: exponent,
-                        value: amount
-                    },
-                    title: popup_title,
-                    description: popup_description,
-                    locale: locale,
-                    custom: {
-                        orderId: id_cart,
-                        products: products,
-                        customer: {
-                            name: name,
-                            email: email,
-                            telephone: telephone,
-                            address: address,
-                            customerIp: ip
-                        },
-                        // platform: {
-                        //     version: platform_version,
-                        //     name: ecommerce
-                        // },
-                        ecommerce: {
-                            version: platform_version,
-                            name: ecommerce
-                        },
-                        lunar_module: {
-                            version: module_version
-                        }
-                    },
+        $('.lunar-payment').on('click', (e) => {
+            let $methodInput = $(e.target).parents('div.lunar').find('input');
+            let method = $methodInput.val();
+            
+            $methodInput.prop('checked', true);
 
-                },
-                function (err, r) {
-                    if (typeof r !== 'undefined') {
-                        var return_url = url_controller + qry_str + 'transactionid=' + r.transaction.id;
-                        if (err) {
-                            return console.warn(err);
-                        }
-                        location.href = htmlDecode(return_url);
-                    }
-                });
-        }
+            $(`#${method}`).prop('hidden', false);
+        });
 
-        function htmlDecode(url) {
-            return String(url).replace(/&amp;/g, '&');
-        }
-    </script>
-    {*<div class="row">
-        <div class="col-xs-12">
-            <p class="payment_module lunar" onclick="pay();">
-                <span class="lunar_text">{l s='Pay with credit card' mod='lunarpayment'}</span>
-            </p>
-        </div>
-    </div>*}
-    <div class="row">
+        /** 
+        * Compatibility with Advanced EU compliance module
+        */
+        $('#HOOK_ADVANCED_PAYMENT p.payment_module').on('click', (e) => {
+
+            $('.cart_navigation form[action*="lunarpayment"]').remove();
+            $('#confirmOrder').show();
+
+            let method = $('.payment_selected .payment_option_cta').children('span').data('method');
+
+            if (!method) {
+                return;
+            }
+
+            let form = $(`#${method}`).clone()
+            form.prop('id', '')
+            form.addClass('pull-right')
+
+            if ($('#confirmOrder').length) {
+                $('#confirmOrder').hide();
+            }
+
+            $('.cart_navigation').append(form);
+            $('.cart_navigation form').prop('hidden', false);
+
+            function checkTOS(e) {
+                e.preventDefault();
+                let handler = new PaymentOptionHandler();
+                if (handler.checkTOS() === false) {
+                    PrestaShop.showError(aeuc_tos_err_str);
+                    return;
+                }
+                form.submit();
+            }
+
+            form.children('button').on('click', (e) => checkTOS(e));
+        });
+
+    });
+{/literal}
+</script>
+
+{if isset($lunar_card) }
+    <div class="row lunar">
         <div class="col-xs-12 col-md-12">
-            <div class="payment_module lunar-payment clearfix" style="border: 1px solid #d6d4d4;
-            border-radius: 4px;
-            color: #333333;
-            display: block;
-            font-size: 17px;
-            font-weight: bold;
-            letter-spacing: -1px;
-            line-height: 23px;
-            padding: 20px 20px;
-            position: relative;
-            cursor:pointer;
-            margin-top: 10px;
-            " onclick="pay();">
-                <input style="float:left;" id="lunar-btn" type="image" name="submit"
-                        src="{$this_path_lunar}logo.png" alt=""
-                        style="vertical-align: middle; margin-right: 10px; width:57px; height:57px;"/>
-                <div style="float:left; margin-left:10px;">
-                    <span style="margin-right: 10px;">{l s={$payment_method_title} mod='lunarpayment'}</span>
-                    <span>
-                        <ul class="cards">
-                            {foreach from=$payment_method_creditcard_logo item=logo}
-                                <li>
-                                    <img src="{$this_path_lunar}/views/img/{$logo}" title="{$logo}" alt="{$logo}"/>
-                                </li>
-                            {/foreach}
-                        </ul>
-                    </span>
-                    <small style="font-size: 12px; display: block; font-weight: normal; letter-spacing: 1px;">{l s={$payment_method_desc} mod='lunarpayment'}</small>
-                </div>
+            <div class="payment_module lunar-payment clearfix"
+                    style=" border: 1px solid #d6d4d4; display: block; font-size: 17px; font-weight: bold; padding: 20px; cursor: pointer">
+
+                    <div style="float:left; width:100%">
+                        <span style="margin-right: 10px;">{l s={$lunar_card['title']} mod=lunarpayment}</span>
+                        <span>
+                            <ul class="cards">
+                                {foreach from=$lunar_card['accepted_cards'] item=logo}
+                                    <li>
+                                        <img src="{$module_path}/views/img/{$logo}" title="{$logo}" alt="{$logo}"/>
+                                    </li>
+                                {/foreach}
+                            </ul>
+                        </span>
+                        
+                        <label class="lunar-radio">
+                            <input type="radio" name="lunar-payment" value="lunar-card" />
+                        </label>
+
+                        <small style="font-size: 12px; display: block; font-weight: normal; letter-spacing: 1px; max-width:100%;">
+                            {l s={$lunar_card['desc']} mod=lunarpayment}
+                        </small>
+                    </div>
+
             </div>
         </div>
     </div>
 {/if}
+
+{if isset($lunar_mobilepay) }
+    <div class="row lunar">
+        <div class="col-xs-12 col-md-12">
+            <div class="payment_module lunar-payment clearfix"
+                style=" border: 1px solid #d6d4d4; display: block; font-size: 17px; font-weight: bold; padding: 20px; cursor: pointer">
+
+                    <div style="float:left; width:100%">
+                        <span style="margin-right: 10px;">{l s={$lunar_mobilepay['title']} mod=lunarpayment }</span>
+                        <span>
+                            <img style="color: red; height:50px;" 
+                                id="mobilepay-logo" src="{$lunar_mobilepay['logo']}" title="mobilepay-logo" alt="mobilepay-logo"/>
+                        </span>
+
+                        <label class="lunar-radio">
+                            <input type="radio" name="lunar-payment" value="lunar-mobilepay" />
+                        </label>
+
+                        <small style="font-size: 12px; display: block; font-weight: normal; letter-spacing: 1px; max-width:100%;">
+                            {l s={$lunar_mobilepay['desc']} mod=lunarpayment }
+                        </small>
+                    </div>
+
+            </div>
+        </div>
+    </div>
+{/if}
+
+{if isset($lunar_card) }
+    <form id="lunar-card" action="{$lunar_card['action_url']}" method="POST" hidden>
+        <button class="btn btn-lg btn-success pull-right" type="submit">
+            <div>Pay with {$lunar_card['title']}</div>
+        </button>
+    </form>
+{/if}
+{if isset($lunar_mobilepay) }
+    <form id="lunar-mobilepay" action="{$lunar_mobilepay['action_url']}" method="POST" hidden>
+        <button class="btn btn-lg btn-success pull-right" type="submit">
+            <div>Pay with {$lunar_mobilepay['title']}</div>
+        </button>
+    </form>
+{/if}
+
+
+<style type="text/css">
+    .lunar-payment {
+        margin-bottom: 1rem;
+    }
+
+    .lunar-radio {
+        float: right;
+        top: 1rem;
+        right: 1.5rem;
+    }
+
+    .lunar-radio > input {
+        opacity: 1;
+        height: 2rem;
+        width: 2rem;
+    }
+
+    .cards {
+        display: inline-flex;
+    }
+    .cards li {
+        width: 25%;
+        padding: 3px;
+    }
+    .cards li img {
+        vertical-align: middle;
+        max-width: 100%;
+        height: 40px;
+    }
+    
+    #mobilepay-logo {
+        height: 40px;
+        margin-left: 5px;
+        margin-right: 5px;
+    }
+
+    /** 
+    * Style for Advanced EU Compliance module
+    */
+    .cards-rendered {
+        display: inline-flex;
+    }
+    .cards-rendered li img {
+        height: 50px;
+        padding: 3px;
+    }
+</style>
