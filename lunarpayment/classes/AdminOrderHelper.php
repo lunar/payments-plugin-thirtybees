@@ -72,6 +72,96 @@ class AdminOrderHelper
 		try {
 			$fetchedTransaction = $apiClient->payments()->fetch($transactionId);
 
+			if (!$fetchedTransaction || empty($fetchedTransaction['authorisationCreated'])) {
+				return [
+					'error'   => 1,
+					'message' => $this->message('No transaction or authorization with provided id: ') . $transactionId,
+				];
+			}
+
+			if (
+				($fetchedTransaction['amount']['currency'] ?? '') != $currencyCode
+				||
+				($fetchedTransaction['amount']['decimal'] ?? '') != $totalAmount
+			) {
+				return [
+					'error'   => 1,
+					'message' => $this->message('Currency or amount doesn\'t match.'),
+				];
+			}
+			
+			$data = [
+				'amount' => [
+					'currency' => $currencyCode,
+					'decimal' => $totalAmount,
+				],
+			];
+
+			switch ($this->action) {
+				case "capture":
+				case "cancel":
+					if ($isTransactionCaptured) {
+						return [
+							'warning' => 1,
+							'message' => $this->message('Transaction it\'s already Captured, try to Refund.'),
+						];
+					}
+
+					// We set new status only if it is a Lunar Toolbox action
+					if (Tools::isSubmit('lunar_action')) {
+						$this->action == 'capture'
+							? $newOrderStatus = (int) $this->getConfigValue('ORDER_STATUS')
+							: $newOrderStatus = (int) Configuration::get('PS_OS_CANCELED');
+					}
+
+					$apiTransaction = $apiClient->payments()->{$this->action}($transactionId, $data);
+
+					break;
+
+				case "refund":
+					if (! $isTransactionCaptured) {
+						return [
+							'warning' => 1,
+							'message' => $this->message('You need to Capture Transaction prior to Refund.'),
+						];
+					} 
+
+					if (! Validate::isPrice($amount_to_refund)) {
+						return [
+							'error'   => 1,
+							'message' => $this->message('Invalid format amount to Refund.'),
+						];
+					}
+					
+					/** Round to currency precision */
+					$amount_to_refund = number_format($amount_to_refund, $currency->decimal_places, '.', '');
+
+					/* Modify amount to refund accordingly */
+					$maxAmountToRefund = $totalAmount - $refundedAmount;
+
+					if ($amount_to_refund > $maxAmountToRefund) {
+						return [
+							'warning' => 1,
+							'message' => $this->message('Cannot Refund more than ' . $maxAmountToRefund . ' ' . $currencyCode),
+						];
+					}
+
+					$data['amount']['decimal'] = $amount_to_refund;
+
+					// For the case of a cent difference (overcome rounding issues)
+					$difference = number_format($maxAmountToRefund - $amount_to_refund, $currency->decimal_places, '.', '');
+					$precision = 1 / (10 ** $currency->decimal_places);
+
+					/** Leave order status unchanged until full refund */
+					($amount_to_refund == $maxAmountToRefund || $difference <= $precision)
+						? $newOrderStatus = (int) Configuration::get('PS_OS_REFUND')
+						: null;
+
+					$apiTransaction = $apiClient->payments()->refund($transactionId, $data);
+
+					break;
+			}
+
 		} catch (ApiException $e) {
 			PrestaShopLogger::addLog($e->getMessage(), $severity = 3);
 			return [
@@ -80,111 +170,13 @@ class AdminOrderHelper
 			];
 		}
 
-		if (!$fetchedTransaction && !$fetchedTransaction['authorisationCreated']) {
-			return [
-				'error'   => 1,
-				'message' => $this->message('No transaction or authorization with provided id: ') . $transactionId,
-			];
-		}
-
-		if (
-			($fetchedTransaction['amount']['currency'] ?? '') != $currencyCode
-			||
-			($fetchedTransaction['amount']['decimal'] ?? '') != $totalAmount
-		) {
-			return [
-				'error'   => 1,
-				'message' => $this->message('Currency or amount doesn\'t match.'),
-			];
-		}
-		
-		$data = [
-			'amount' => [
-				'currency' => $currencyCode,
-				'decimal' => $totalAmount,
-			],
-		];
-
-		$apiTransaction = null;
-		$newOrderStatus = null;
-
-		switch ($this->action) {
-			case "capture":
-			case "cancel":
-				if ($isTransactionCaptured) {
-					return [
-						'warning' => 1,
-						'message' => $this->message('Transaction it\'s already Captured, try to Refund.'),
-					];
-				}
-				break;
-
-			case "refund":
-				if (! $isTransactionCaptured) {
-					return [
-						'warning' => 1,
-						'message' => $this->message('You need to Capture Transaction prior to Refund.'),
-					];
-				} 
-
-				if (! Validate::isPrice($amount_to_refund)) {
-					return [
-						'error'   => 1,
-						'message' => $this->message('Invalid format amount to Refund.'),
-					];
-				}
-				
-				/** Round to currency precision */
-				$amount_to_refund = number_format($amount_to_refund, $currency->decimal_places, '.', '');
-
-				/* Modify amount to refund accordingly */
-				$maxAmountToRefund = $totalAmount - $refundedAmount;
-
-                if ($amount_to_refund > $maxAmountToRefund) {
-					return [
-						'warning' => 1,
-						'message' => $this->message('Cannot Refund more than ' . $maxAmountToRefund . ' ' . $currencyCode),
-					];
-                }
-
-				$data['amount']['decimal'] = $amount_to_refund;
-
-				// For the case of a cent difference (overcome rounding issues)
-				$difference = number_format($maxAmountToRefund - $amount_to_refund, $currency->decimal_places, '.', '');
-				$precision = 1 / (10 ** $currency->decimal_places);
-
-				/** Leave order status unchanged until full refund */
-                ($amount_to_refund == $maxAmountToRefund || $difference <= $precision)
-					? $newOrderStatus = (int) Configuration::get('PS_OS_REFUND')
-					: null;
-
-				break;
-		}
-
-		try {
-			$apiTransaction = $apiClient->payments()->{$this->action}($transactionId, $data);
-
-		} catch (ApiException $e) {
-			PrestaShopLogger::addLog($e->getMessage(), $severity = 3);
-			return [
-				'error'   => 1,
-				'message' => $e->getMessage(),
-			];
-		}
-
-		if ($apiTransaction && 'completed' != $apiTransaction["{$this->action}State"]) {
+		if ('completed' != $apiTransaction["{$this->action}State"]) {
 			$message = $apiTransaction['declinedReason']['error'] ?? json_encode($apiTransaction);
 			PrestaShopLogger::addLog($message, $severity = 3);
 			return [
 				'error'   => 1,
 				'message' => $message,
 			];
-		}
-
-		// The status is chaneged only for full refund action 
-		// (for other actions, status is automatically changed)
-		if($newOrderStatus){
-			$this->order->setCurrentState($newOrderStatus, $this->context->employee->id);
 		}
 
 		$this->action == 'capture'
@@ -194,6 +186,12 @@ class AdminOrderHelper
 				? $this->updateTransaction($transactionId, ['refunded_amount' => $refundedAmount + $amount_to_refund])
 				: null
 			);
+
+		// The status is changed only for Lunar Toolbox & full refund actions
+		// (for capture/cancel status change actions, the order status is changed automatically)
+		if(!empty($newOrderStatus)){
+			$this->order->setCurrentState($newOrderStatus, $this->context->employee->id);
+		}
 
 		$diffAmount = null;
 		$newOrderStatus ?: $diffAmount = $amount_to_refund; // if it's a partial refund
