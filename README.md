@@ -47,3 +47,11 @@ These actions (Capture, Refund, Cancel) are also available in order view mode, `
 3. Cancel
    * ThirtyBees admin panel: full cancel
    * Lunar admin panel: full/partial cancel
+
+4. Compatibility with Advanced EU Compliance module
+
+## Changelog
+#### 2.0.0:
+- Migrated to hosted checkout flow
+#### 1.0.0:
+- Initial commit
