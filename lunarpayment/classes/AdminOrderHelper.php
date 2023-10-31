@@ -295,6 +295,10 @@ class AdminOrderHelper
 	 */
 	public function paymentActionOnOrderStatusChange($params)
 	{
+		if (Tools::isSubmit('lunar_action')) {
+			return; 
+		}
+
 		$order_state = $params['newOrderStatus'];
 		$id_order	= $params['id_order'];
 

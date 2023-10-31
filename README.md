@@ -51,6 +51,8 @@ These actions (Capture, Refund, Cancel) are also available in order view mode, `
 4. Compatibility with Advanced EU Compliance module
 
 ## Changelog
+#### 2.0.1:
+- Fixed trigger capture/cancel transaction only once
 #### 2.0.0:
 - Migrated to hosted checkout flow
 #### 1.0.0:
