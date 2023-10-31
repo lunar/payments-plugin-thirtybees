@@ -2,7 +2,7 @@ logs
 .idea
 .env
 .env.production
-vendor
+/vendor
 lunarpayment/build.sh
 lunarpayment/builds
 node_modules
